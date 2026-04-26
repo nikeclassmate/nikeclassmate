@@ -1,0 +1,52 @@
+##Cluster Analysis
+mydata <- read.csv("~/2025-26/Jan_MSBA_/utilities.csv")
+attach(mydata)
+
+# Scatter plot 
+plot(Fuel_Cost~Sales, data = mydata)
+with(mydata,text(Fuel_Cost ~ Sales, labels=Company,pos=4))
+
+# Normalization
+z <- mydata[,-c(1,1)]
+z
+means <- apply(z,2,mean)
+sds <- apply(z,2,sd)
+nor <- scale(z,center=means,scale=sds)
+
+# Calculate Euclidean distance matrix  
+distance = dist(nor)
+print(distance, digits=3)
+
+# Hierarchical agglomerative clustering using complete linkage
+mydata.hclust = hclust(distance)
+plot(mydata.hclust)
+plot(mydata.hclust,labels=mydata$Company,main='Default from hclust')
+plot(mydata.hclust,hang=-1)
+
+# Hierarchical agglomerative clustering using "average" linkage 
+mydata.hclusta<-hclust(distance,method="average")
+plot(mydata.hclusta,hang=-1)
+
+# Cluster membership
+member.c = cutree(mydata.hclust,3)
+member.a = cutree(mydata.hclusta,3)
+table(member.c, member.a)
+
+# Characterizing clusters means
+aggregate(nor,list(member.c),mean)
+aggregate(mydata[,-c(1,1)],list(member.c),mean)
+
+# Silhouette Plot
+library(cluster) 
+plot(silhouette(cutree(mydata.hclust,3), distance)) 
+
+# Scree Plot
+wss <- (nrow(nor)-1)*sum(apply(nor,2,var))
+for (i in 2:20) wss[i] <- sum(kmeans(nor, centers=i)$withinss)
+plot(1:20, wss, type="b", xlab="Number of Clusters", ylab="Within groups sum of squares") 
+
+# K-means clustering
+set.seed(123)
+kc<-kmeans(nor,4)
+kc
+plot(Sales~D.Demand,mydata,col=kc$cluster)
