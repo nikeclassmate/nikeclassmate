@@ -132,6 +132,54 @@ fviz_contrib(ca_result, choice="col", axes=2,
              title="Column Contributions to Dimension 2")
 
 
+#SEM
+install.packages("lavaan", dependencies=TRUE)
+
+```{r}
+library(lavaan)
+dat <- read.csv("https://stats.idre.ucla.edu/wp-content/uploads/2021/02/worland5.csv")
+cov(dat)
+m1a <- lm(read ~ motiv, data=dat)
+(fit1a <-summary(m1a))
+m1b <-   '
+    read ~ 1 + motiv 
+    motiv ~~ motiv
+'
+fit1b <- sem(m1b, data=dat)
+summary(fit1b)
+
+m2 <- '
+   read ~ 1 + ppsych + motiv
+   ppsych ~~ motiv
+'
+fit2 <- sem(m2, data=dat)
+summary(fit2)
+m3e <- '
+  # regressions
+    read ~ 1 + ppsych + motiv
+    arith ~ 1 + ppsych + motiv
+'
+fit3e <- sem(m3e, data=dat)
+summary(fit3e)
+  m4b <- '
+  # regressions
+    read ~ 1 + ppsych + motiv
+    arith ~ 1 + motiv + read + ppsych
+'
+fit4b <- sem(m4b, data=dat)
+summary(fit4b, fit.measures=TRUE)
+m6a <- '
+# measurement model
+adjust =~ motiv + harm + stabi
+risk =~ verbal + ppsych + ses
+achieve =~ read + arith + spell
+# regressions
+achieve ~ adjust + risk
+'
+fit6a <- sem(m6a, data=dat)
+summary(fit6a, standardized=TRUE, fit.measures=TRUE)
+
+
 
 # Principal Component Analysis and Factor Analysis in R
 
