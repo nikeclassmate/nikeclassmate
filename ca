@@ -1,1 +1,112 @@
+## Question 4: Titanic Dataset Analysis
+
+```{r}
+# Prepare Titanic data
+titanic = mydata
+titanic$Survived = factor(titanic$Survived, labels = c("No", "Yes"))
+titanic$Pclass = factor(titanic$Pclass, labels = c("1st", "2nd", "3rd"))
+```
+
+### Q4(a) - Survival by Ticket Class
+
+```{r}
+# Visualize Survival by Ticket Class
+ggplot(titanic, aes(x=Pclass, fill=Survived)) +
+  geom_bar(position="dodge") +
+  labs(title="Survival Status by Ticket Class",
+       x="Ticket Class", y="Count", fill="Survived") +
+  theme_minimal()
+```
+
+**Interpretation:** First class passengers had a higher survival rate compared to second and third class. Third class passengers had the highest death count, suggesting socio-economic status played a role in survival chances.
+
+### Q4(b) - Survival by Gender
+
+```{r}
+# Visualize Survival by Gender
+ggplot(titanic, aes(x=Sex, fill=Survived)) +
+  geom_bar(position="dodge") +
+  labs(title="Survival Status by Gender",
+       x="Gender", y="Count", fill="Survived") +
+  theme_minimal()
+```
+
+**Interpretation:** Females had a significantly higher survival rate than males. This aligns with the "women and children first" evacuation protocol followed during the Titanic disaster.
+
+### Q4(c) - Cluster Analysis
+
+```{r}
+# Prepare data for clustering - use Survived, Pclass, Sex, Age
+titanic_cluster = mydata[, c("Survived", "Pclass", "Sex", "Age")]
+
+# Encode Sex as numeric
+titanic_cluster$Sex = ifelse(titanic_cluster$Sex == "male", 1, 0)
+
+# Remove missing values
+titanic_cluster = na.omit(titanic_cluster)
+
+# Normalize
+z = titanic_cluster
+means = apply(z, 2, mean)
+sds = apply(z, 2, sd)
+nor = scale(z, center=means, scale=sds)
+
+# Euclidean distance
+distance = dist(nor)
+
+# Hierarchical clustering - complete linkage
+mydata.hclust = hclust(distance)
+plot(mydata.hclust, hang=-1, main="Hierarchical Clustering - Titanic")
+```
+
+```{r}
+# Hierarchical clustering - average linkage
+mydata.hclusta = hclust(distance, method="average")
+plot(mydata.hclusta, hang=-1, main="Hierarchical Clustering (Average) - Titanic")
+```
+
+```{r}
+# Cluster membership - 3 clusters
+member.c = cutree(mydata.hclust, 3)
+member.a = cutree(mydata.hclusta, 3)
+table(member.c, member.a)
+```
+
+```{r}
+# Cluster means (normalized)
+aggregate(nor, list(member.c), mean)
+```
+
+```{r}
+# Cluster means (original scale)
+aggregate(titanic_cluster, list(member.c), mean)
+```
+
+```{r}
+# Silhouette plot
+plot(silhouette(cutree(mydata.hclust, 3), distance))
+```
+
+```{r}
+# Scree plot - WSS
+wss = (nrow(nor)-1)*sum(apply(nor, 2, var))
+for (i in 2:10) wss[i] = sum(kmeans(nor, centers=i)$withinss)
+plot(1:10, wss, type="b", xlab="Number of Clusters", ylab="Within groups sum of squares",
+     main="Scree Plot - Optimal Clusters")
+```
+
+```{r}
+# K-means clustering with 3 clusters
+set.seed(123)
+kc = kmeans(nor, 3)
+kc
+```
+
+```{r}
+# Plot clusters
+plot(Survived ~ Age, titanic_cluster, col=kc$cluster,
+     main="K-means Clusters: Survived vs Age")
+```
+
+**Interpretation:** The cluster analysis groups Titanic passengers into 3 distinct clusters based on survival, class, gender, and age. Cluster means reveal that one cluster likely represents young female survivors from higher classes, another represents male non-survivors from lower classes, and a third represents a mixed middle group. The silhouette plot and scree plot help confirm that 3 clusters provide a reasonable segmentation of the passengers.
 
