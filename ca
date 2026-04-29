@@ -1,4 +1,9 @@
 ## Question 4: Titanic Dataset Analysis
+```{r}
+# Import dataset
+mydata = read_excel("MSBA_Datafile.xlsx", sheet = "Set A")
+head(mydata)
+```
 
 ```{r}
 # Prepare Titanic data
