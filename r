@@ -514,7 +514,7 @@ plot(AUTOIRF)
 
 #20. IRF for all variables
 # IRF with 95% confidence interval
-IRF_ALL <- irf(VAR1,n.ahead = 10,ci = 0.95,runs = 100)
+IRF_ALL <- irf(VAR1,impulse = colnames(YY),response = colnames(YY),n.ahead = 10,ci = 0.95,boot = TRUE,runs = 100)
 
 # Plot
 plot(IRF_ALL)
