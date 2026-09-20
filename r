@@ -430,8 +430,8 @@ YY <- cbind.zoo(
   retindia,
   retsouthafrica
 )
-#Now YY contains multiple stationary return series.
 plot(YY)
+#Now YY contains multiple stationary return series.
 
 #8. VAR Lag Selection
 # Select appropriate lag
@@ -522,15 +522,14 @@ plot(IRF_ALL)
 
 #21. FEVD
 # Forecast Error Variance Decomposition
-FEVD <- fevd(VAR1,n.ahead = 10)
-
-# Plot
-plot(FEVD)
-
-#You can also inspect individual results:
-FEVD$retauto
-FEVD$retbank
-FEVD$retfinancial
+##Variance Decomposition
+FEVDI=fevd(VAR1,n.ahead = 10)
+plot(FEVDI)
+FEVDI[["retauto"]]
+FEVDI[["retbank"]]
+FEVDI[["retfmcg"]]
+FEVDI[["rethealthcare"]]
+FEVDI[["retfinancial"]]
 # FEVD shows the contribution of different shocks
 # to forecast-error variance
 
