@@ -431,6 +431,7 @@ YY <- cbind.zoo(
   retsouthafrica
 )
 #Now YY contains multiple stationary return series.
+plot(YY)
 
 #8. VAR Lag Selection
 # Select appropriate lag
