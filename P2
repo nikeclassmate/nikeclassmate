@@ -1,0 +1,111 @@
+
+# BDA LAB 2: TITANIC DATASET — AVERAGE AGE OF MALE AND FEMALE
+# USING HADOOP MAPREDUCE
+
+# 1. Create input file
+gedit titanic.txt
+
+# Content of titanic.txt:
+# Owen,male,22
+# Hannah,female,38
+# Laina,female,26
+# Lily,female,35
+# Allen,male,35
+# Jack,male,28
+# Emma,female,31
+# Thomas,male,42
+# Sophia,female,24
+# William,male,30
+
+# 2. Create Mapper
+gedit mapper2.py
+
+# Mapper code:
+#!/usr/bin/env python
+import sys
+import csv
+
+reader = csv.reader(sys.stdin)
+
+for line in reader:
+    # line[1] is gender, line[2] is age
+    if len(line) > 2:
+        print('%s,%s' % (line[1], line[2]))
+
+# 3. Test Mapper
+cat titanic.txt | python mapper2.py
+
+# Expected output:
+# male,22
+# female,38
+# female,26
+# female,35
+# male,35
+# male,28
+# female,31
+# male,42
+# female,24
+# male,30
+
+# 4. Create Reducer
+gedit reducer2.py
+
+# Reducer code:
+#!/usr/bin/env python
+import sys
+
+data = {}
+
+for line in sys.stdin:
+    gender, age = line.strip().split(',')
+
+    if gender not in data:
+        data[gender] = [0, 0]
+
+    data[gender][0] += float(age)
+    data[gender][1] += 1
+
+for gender, values in data.items():
+    average = values[0] / values[1]
+    print("%s = %s" % (gender, average))
+
+# 5. Test complete program locally
+cat titanic.txt | python mapper2.py | sort | python reducer2.py
+
+# Expected output:
+# female = 30.8
+# male = 31.4
+
+# 6. Create HDFS directory
+hdfs dfs -mkdir prg2
+
+# 7. List HDFS contents
+hdfs dfs -ls
+
+# 8. Upload input file to HDFS
+hdfs dfs -put /home/cloudera/titanic.txt /user/cloudera/prg2
+
+# 9. Check uploaded file
+hdfs dfs -ls /user/cloudera/prg2
+
+# 10. Give execution permissions
+chmod 777 mapper2.py reducer2.py
+
+# 11. Execute Hadoop Streaming
+hadoop jar /usr/lib/hadoop-mapreduce/hadoop-streaming.jar \
+-input /user/cloudera/prg2/titanic.txt \
+-output /user/cloudera/prg2/output \
+-mapper /home/cloudera/mapper2.py \
+-reducer /home/cloudera/reducer2.py
+
+# 12. Display final output
+hdfs dfs -cat /user/cloudera/prg2/output/part-00000
+
+# Expected final output:
+# female = 30.8
+# male = 31.4
+
+# 13. If output directory already exists, delete it first
+hdfs dfs -rm -r /user/cloudera/prg2/output
+
+# Then execute the Hadoop Streaming command again
