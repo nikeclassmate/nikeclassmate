@@ -1,0 +1,77 @@
+1: WORD COUNT USING HADOOP MAPREDUCE
+
+# 1. Create input file
+gedit word.txt
+
+# Content of word.txt:
+# Hello world
+# Hello Hadoop.
+
+# 2. Create Mapper
+gedit mapper.py
+
+# Mapper code:
+#!/usr/bin/python3
+import sys
+
+for line in sys.stdin:
+    words = line.strip().split()
+    for word in words:
+        print("%s\t%s" % (word, 1))
+
+# 3. Test Mapper
+cat word.txt | python3 mapper.py
+
+# 4. Create Reducer
+gedit reducer.py
+
+# Reducer code:
+#!/usr/bin/python3
+import sys
+
+counts = {}
+
+for line in sys.stdin:
+    word, count = line.strip().split('\t')
+    counts[word] = counts.get(word, 0) + int(count)
+
+for word, count in counts.items():
+    print("%s\t%s" % (word, count))
+
+# 5. Test complete program locally
+cat word.txt | python3 mapper.py | sort | python3 reducer.py
+
+# 6. Create HDFS directory
+hdfs dfs -mkdir prg1
+
+# 7. List HDFS contents
+hdfs dfs -ls
+
+# 8. Upload input file to HDFS
+hdfs dfs -put /home/cloudera/word.txt /user/cloudera/prg1
+
+# 9. Check uploaded file
+hdfs dfs -ls /user/cloudera/prg1
+
+# 10. Give execution permissions
+chmod 777 mapper.py reducer.py
+
+# 11. Run Hadoop Streaming
+hadoop jar /usr/lib/hadoop-mapreduce/hadoop-streaming.jar \
+-input /user/cloudera/prg1/word.txt \
+-output /user/cloudera/prg1/output \
+-mapper /home/cloudera/mapper.py \
+-reducer /home/cloudera/reducer.py
+
+# If output directory already exists, remove it first:
+hdfs dfs -rm -r /user/cloudera/prg1/output
+
+# 12. Display final output
+hdfs dfs -cat /user/cloudera/prg1/output/part-00000
+
+# EXPECTED OUTPUT:
+# Hadoop.  1
+# Hello    2
+# world    1
+
+2.
