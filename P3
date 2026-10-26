@@ -1,0 +1,28 @@
+-- Start Hadoop services
+start-dfs.sh
+start-yarn.sh
+
+-- Run Pig in local mode
+pig -x local
+
+-- Load dataset
+A = LOAD 'word1.txt' USING PigStorage(',')
+    AS (id:int, first_name:chararray, last_name:chararray, age:int);
+
+-- Extract first letter of first name
+B = FOREACH A GENERATE UPPER(SUBSTRING(first_name, 0, 1)) AS first_letter;
+
+-- Group by first letter
+C = GROUP B BY first_letter;
+
+-- Count occurrences
+D = FOREACH C GENERATE group AS first_letter, COUNT(B) AS count;
+
+-- Sort in descending order
+E = ORDER D BY count DESC;
+
+-- Get the most frequent letter
+F = LIMIT E 1;
+
+-- Display output
+DUMP F;
