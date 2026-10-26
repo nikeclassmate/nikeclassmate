@@ -1,0 +1,17 @@
+# Create a directory in HDFS
+hdfs dfs -mkdir /user/cloudera/lab4
+
+# List directory contents
+hdfs dfs -ls /user/cloudera/lab4
+
+# Copy a local file to HDFS
+hdfs dfs -put /home/cloudera/titanic.txt /user/cloudera/lab4
+
+# List files in HDFS
+hdfs dfs -ls /user/cloudera/lab4
+
+# Display file contents
+hdfs dfs -cat /user/cloudera/lab4/titanic.txt
+
+# Delete the directory and its contents
+hdfs dfs -rm -r /user/cloudera/lab4
