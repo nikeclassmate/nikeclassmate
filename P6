@@ -1,0 +1,29 @@
+#LAB1
+gedit words.txt
+Hello world
+Hello Hadoop
+
+
+gedit mapper.py
+#!/usr/bin/python3
+import sys
+for line in sys.stdin:
+    words = line.strip().split()
+    for word in words:
+        print("%s\t%s" % (word, 1))
+cat word.txt | python3 mapper.py
+
+
+gedit reducer.py
+#!/usr/bin/python3
+import sys
+counts = {}
+for line in sys.stdin:
+    word, count = line.strip().split('\t')
+    counts[word] = counts.get(word, 0) + int(count)
+for word, count in counts.items():
+    print("%s\t%s" % (word, count))
+cat word.txt | python3 mapper.py | sort | python3 reducer.py
+
+
+#LAB2
