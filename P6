@@ -73,7 +73,7 @@ for gender, values in data.items():
 cat titanic.txt | python mapper2.py | sort | python reducer2.py
 
 
-
+#FEW EXTRA CODES
 # 6. Create HDFS directory
 hdfs dfs -mkdir prg2
 # 7. List HDFS contents
@@ -99,3 +99,37 @@ hdfs dfs -cat /user/cloudera/prg2/output/part-00000
 hdfs dfs -rm -r /user/cloudera/prg2/output
 # Then execute the Hadoop Streaming command again
 
+
+
+
+
+#LAB3
+
+gedit word1.txt
+1, pooja, R, 20,
+2 , sam, Thomas ,25
+3, priya, S, 20
+4, pavan, Rao, 20
+
+#Start Hadoop services
+start-dfs.sh
+start-yarn.sh
+
+#Run Pig in local mode
+pig -x local
+
+
+A = LOAD 'word1.txt' USING PigStorage(',')
+    AS (id:int, first_name:chararray, last_name:chararray, age:int);
+B = FOREACH A GENERATE UPPER(SUBSTRING(first_name, 0, 1)) AS first_letter;
+C = GROUP B BY first_letter;
+D = FOREACH C GENERATE group AS first_letter, COUNT(B) AS count;
+E = ORDER D BY count DESC;
+F = LIMIT E 1;
+DUMP F;
+
+
+
+
+
+#LAB4
