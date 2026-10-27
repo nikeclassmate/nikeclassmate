@@ -151,3 +151,29 @@ hdfs dfs -cat /user/cloudera/lab4/titanic.txt
 
 # Delete the directory and its contents
 hdfs dfs -rm -r /user/cloudera/lab4
+
+
+
+
+
+#LAB5
+
+from pyspark import SparkContext
+from pyspark.sql import SQLContext
+
+sc = SparkContext()
+sql = SQLContext(sc)
+
+rdd = sc.parallelize([
+    (1, "AIML", 69),
+    (2, "CS", 72),
+    (3, "ECE", 99)
+])
+
+df = sql.createDataFrame(rdd, ["No", "Dept", "No_of_students"])
+
+df.show()
+
+sc.stop()
+
+spark-submit   rdd.py
