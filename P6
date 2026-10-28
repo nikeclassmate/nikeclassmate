@@ -186,6 +186,7 @@ hdfs dfs -rm -r /user/cloudera/lab4
 
 #LAB5
 
+gedit rdd.py
 from pyspark import SparkContext
 from pyspark.sql import SQLContext
 
