@@ -27,6 +27,34 @@ for word, count in counts.items():
 cat word.txt | python3 mapper.py | sort | python3 reducer.py
 
 
+# 6. Create HDFS directory
+hdfs dfs -mkdir prg1
+
+# 7. List HDFS contents
+hdfs dfs -ls
+
+# 8. Upload input file to HDFS
+hdfs dfs -put /home/cloudera/word.txt /user/cloudera/prg1
+
+# 9. Check uploaded file
+hdfs dfs -ls /user/cloudera/prg1
+
+# 10. Give execution permissions
+chmod 777 mapper.py reducer.py
+
+# 11. Run Hadoop Streaming
+hadoop jar /usr/lib/hadoop-mapreduce/hadoop-streaming.jar \
+-input /user/cloudera/prg1/word.txt \
+-output /user/cloudera/prg1/output \
+-mapper /home/cloudera/mapper.py \
+-reducer /home/cloudera/reducer.py
+
+# If output directory already exists, remove it first:
+hdfs dfs -rm -r /user/cloudera/prg1/output
+
+# 12. Display final output
+hdfs dfs -cat /user/cloudera/prg1/output/part-00000
+
 
 
 
