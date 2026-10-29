@@ -1,873 +1,41 @@
-Here it is in one box, with the exact code from all 12 notebooks and nothing changed. Each notebook is separated by a banner comment. Because it is unchanged, the two known errors are still in it: `import.fit` in `MLM_8th_OCT` and `Y_pred` vs `y_pred` in `MLM_29th_SEP`. Run each section on its own.
-
-```python
-############################################################
-##### MLM_29th_SEP.ipynb
-############################################################
-
-# --- cell 0 ---
-import matplotlib.pyplot as plt
-from sklearn.datasets import load_iris
-from sklearn.model_selection import train_test_split,GridSearchCV,StratifiedKFold
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.pipeline import Pipeline
-import seaborn as sns
-
-# --- cell 1 ---
-data=load_iris()
-x,y=data.data,data.target
-labels=data.target_names
-
-# --- cell 2 ---
-pipeline=Pipeline([
-    ('scaler',StandardScaler()),
-   ('pca',PCA(n_components=2),),
-   ('km',KNeighborsClassifier(n_neighbors=5,))
-])    
-
-# --- cell 3 ---
-x_train,x_test,y_train,y_test=train_test_split(x,y,train_size=0.2,random_state=42,stratify=y)
-
-# --- cell 4 ---
-pipeline.fit(x_train,y_train) 
-test_score=pipeline.score(x_test,y_test)
-print(f"{test_score:.3f}")
-
-# --- cell 5 ---
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVC
-
-# --- cell 6 ---
-Y_pred=pipeline.predict(x_test)
-
-# --- cell 7 ---
-from sklearn.metrics import confusion_matrix
-#generate confusion matrix
-conf_matrix=confusion_matrix(y_test,y_pred)
-
-#create a plot for the confusion matrix
-plt.figure()
-sns.heatmap(conf_matrix,annot=True,cmap='Blues',fmt='d',
-            xticklabels=labels,yticklabels=labels)
-
-#set the title and lables 
-plt.title('Classification Pipeline Confusion Matrix')
-plt.xlabel('Predicted')
-plt.ylabel('Actual')
-
-plt.tight_layout()
-plt.show()
-
-# --- cell 8 ---
-#make a pipeline without specifying any parameters yet
-pipeline=Pipeline(
-    [('scaler',StandardScaler()),
-     ('pca',PCA()),
-     ('knn',KNeighborsClassifier())
-    ]
-)
-
-# --- cell 9 ---
-## define a model parameter grid to search over
-
-param_grid={'pca__n_components':[2,3],
-            'knn__n_neighbors':[3,5,7]
-           }
-
-# --- cell 10 ---
-## choose a cross validation method
-cv=StratifiedKFold(n_splits=5,shuffle=True,random_state=42)
-
-# --- cell 11 ---
-## determine the best parameters
-
-best_model=GridSearchCV(estimator=pipeline,
-                       param_grid=param_grid,
-                       cv=cv,
-                       scoring='accuracy',
-                       verbose=2
-                       )
-
-# --- cell 12 ---
-best_model.fit(x_train,y_train)
-
-# --- cell 13 ---
-test_score=best_model.score(x_test,y_test)
-print(f"{test_score:.3f}")
-
-# --- cell 14 ---
-best_model.best_params_
-
-
-############################################################
-##### pipeline_29th_sept.ipynb
-############################################################
-
-# --- cell 0 ---
-import matplotlib.pyplot as plt
-from sklearn.datasets import load_iris
-from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.pipeline import Pipeline
-from sklearn.metrics import confusion_matrix, classification_report, accuracy_score
-
-# --- cell 1 ---
-data = load_iris()
-X, y = data.data, data.target
-
-# --- cell 2 (markdown) ---
-# ## Initiate a pipeline consisting of StandardScaler, PCA and KNeigborsClassifier 
-
-# --- cell 3 ---
-pipeline = Pipeline([
-    ('scaler', StandardScaler()),
-    ('pca', PCA(n_components=2)),
-    ('knn', KNeighborsClassifier(n_neighbors  = 5, ))
-])
-
-# --- cell 4 ---
-#train and test
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify =y)
-
-# --- cell 5 ---
-pipeline.fit(X_train, y_train)
-
-#measure the pipeline accuracy on the test data
-test_score = pipeline.score(X_test, y_test)
-print(test_score)
-
-# --- cell 6 (markdown) ---
-# ### Get the Model Predictions
-
-# --- cell 7 ---
-y_pred = pipeline.predict(X_test)
-
-# --- cell 8 (markdown) ---
-# ### Generate the confusion matrix for the knn model and plot it
-
-# --- cell 9 ---
-import seaborn as sns
-conf_matrix = confusion_matrix(y_test, y_pred)  
-
-plt.figure()
-sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Greens', xticklabels=data.target_names, 
-            yticklabels=data.target_names)
-
-plt.title('Classification Piepline Confusion Matrix')
-
-# --- cell 10 ---
-pipeline = Pipeline([
-    ('scaler', StandardScaler()),   
-    ('pca', PCA()),
-    ('knn', KNeighborsClassifier())
-]
-)
-
-# --- cell 11 (markdown) ---
-# ### Define a model parameter grid to search over
-
-# --- cell 12 ---
-param_grid = {
-    'pca__n_components': [2,3],
-    'knn__n_neighbors': [3, 5, 7]
-}
-
-# --- cell 13 ---
-##Choose a cross validation method
-cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
-# --- cell 14 ---
-##Define the best parameters using GridSearchCV
-
-best_model = GridSearchCV(pipeline, param_grid, cv=cv, scoring='accuracy', verbose = 2)
-
-# --- cell 15 ---
-best_model.fit(X_train, y_train)
-
-# --- cell 16 ---
-test_score = best_model.score(X_test, y_test)
-test_score
-
-
-############################################################
-##### Pipeline.ipynb
-############################################################
-
-# --- cell 0 ---
-import matplotlib.pyplot as plt
-from sklearn.datasets import load_iris
-from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.pipeline import Pipeline
-import seaborn as sns 
-from sklearn.metrics import confusion_matrix
-
-# --- cell 1 ---
-data=load_iris()
-X,y=data.data, data.target
-labels=data.target_names
-
-# --- cell 2 ---
-#instantiate a pipeline consisting of standard scaler, PCA and KNeighboursClassifier (this is done for explanation sake)
-pipeline=Pipeline([
-    ('scaler', StandardScaler()), #step1- standardize the deatures
-    ('pca', PCA(n_components=2),), #step2- reduce the dimensions to 2 using PCA
-    ('knn', KNeighborsClassifier(n_neighbors=5,)) #step3- K-Nearest neighbours classifier
-
-])
-
-# --- cell 3 ---
-#split the data into training and testing sets 
-x_train, x_test, y_train, y_test=train_test_split(X,y, test_size=0.2, random_state=42, stratify=y) #startify is to be included in pipeline programs 
-
-# --- cell 4 ---
-#fit the pipeline into training set
-
-pipeline.fit(x_train, y_train)
-
-#measure the pipeline accuracy on the test data
-test_score=pipeline.score(x_test, y_test)
-print(f"{test_score:.3f}")
-
-# --- cell 5 ---
-#get the model predictions 
-y_pred=pipeline.predict(x_test)
-
-# --- cell 6 ---
-#generate the confusion matrix for KNN model and plot it
-
-#generate the confusion matrix
-conf_matrix=confusion_matrix(y_test, y_pred)
-
-#create a plot for the confusion matrix 
-plt.figure()
-sns.heatmap(conf_matrix, annot=True, cmap='Blues', fmt='d', xticklabels=labels, yticklabels=labels)
-
-#set the title and labels 
-plt.title("Classification pipeline confusion matrix")
-plt.xlabel('Predicted')
-plt.ylabel("Actual")
-plt.tight_layout()
-plt.show()
-
-# --- cell 7 ---
-#make the pipeline without specifying any parameters yet (this is the actual code)
-pipeline=Pipeline(
-    [('scaler', StandardScaler()),
-     ('pca', PCA()),
-     ('knn', KNeighborsClassifier())
-     ]
-)
-
-# --- cell 8 ---
-#define a model parameter grid to search over
-
-param_grid={'pca__n_components':[2,3],
-            'knn__n_neighbors':[3,5,6]
-            }
-
-# --- cell 9 ---
-#choose a cross validation method
-
-cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
-
-# --- cell 10 ---
-#determine the best parameters 
-
-best_model=GridSearchCV(estimator=pipeline, param_grid=param_grid, cv=cv, scoring='accuracy', verbose=2)
-
-# --- cell 11 ---
-#fit the best gridsearchcv model to the training data 
-
-best_model.fit(x_train, y_train)
-
-# --- cell 12 ---
-#evaluate the accuracy of the best model on the test set 
-
-test_score=best_model.score(x_test, y_test)
-print(f"{test_score:.3f}")
-
-# --- cell 13 ---
-#accuracy improved from 90% to 93%
-
-# --- cell 14 ---
-#display the best parameters(incase it doesnt come in the dropdown)
-best_model.best_params_
-
-# --- cell 15 ---
-#plot the confusion matrix for the predictions on the test set 
-
-y_pred
-
-
-############################################################
-##### MLM_01_OCT.ipynb
-############################################################
-
-# --- cell 0 ---
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import accuracy_score
-
-# --- cell 1 ---
-data={
-    'text': [
-        'I absolutely love this product,it works perfectly!',
-        'This is the worst purchase i have ever made.',
-        'Its okay, nothing special but does the job.',
-        'Fantastic customer service and beautiful design.',
-        'Horrible quality, it broke on the first day.',
-        'I am highly satisfied with the fast shipping.',
-        'Waste of money, do not buy this product.',
-        'Pretty good value for the price, I recommend it.',
-        'Item arrived late and the product was damaged, very disappointed.'
-    ],
-    'sentiment':['positive','negative','neutral','positive','negative','positive','negative','positive','negative']
-}
-
-# --- cell 2 ---
-#load into a pandas Data.Frame
-df=pd.DataFrame(data)
-
-# --- cell 3 ---
-#2. split dataset into features(x) and target labels(y)
-x=df['text']
-y=df['sentiment']
-
-# --- cell 4 ---
-#split into training (80%) and testing (20%) sets 
-x_train,x_test,y_train,y_test=train_test_split(x,y,test_size=0.2,random_state=42)
-
-# --- cell 5 ---
-#Text Vectorization (TF-IDF Features EXtraction)
-vectorizer=TfidfVectorizer(stop_words='english',lowercase=True)
-x_train_vec=vectorizer.fit_transform(x_train)
-x_test_vec=vectorizer.transform(x_test)
-
-# --- cell 6 ---
-#INtialize and Train classifies
-lr_model=LogisticRegression()
-lr_model.fit(x_train_vec,y_train)
-
-# --- cell 7 ---
-nb_model=MultinomialNB()
-nb_model.fit(x_train_vec,y_train)
-
-# --- cell 8 ---
-#Evaluate and compare Models
-lr_preds=lr_model.predict(x_test_vec)
-nb_preds=nb_model.predict(x_test_vec)
-
-print("--- Model Accuracy Comparison---")
-print(f"Logistic Regression Accuracy : {accuracy_score(y_test, lr_preds) * 100:.2f}%")
-print(f"Multinomial Naive Bayes Accuracy : {accuracy_score(y_test, nb_preds) * 100:.2f}%\n")
-
-# --- cell 9 ---
-#6.Predict Sentiment on New Custom Texts 
-def predict_sentiment(new_texts):
-    new_texts_vec = vectorizer.transform(new_texts)
-
-    lr_predictions = lr_model.predict(new_texts_vec)
-    nb_predictions = nb_model.predict(new_texts_vec)
-
-    print("--- Testing Custom Input ---")
-    for text, lr_pred, nb_pred in zip(new_texts, lr_predictions, nb_predictions):
-        print(f"Text: '{text}'")
-        print(f"  -> LR Prediction:  *{lr_pred.upper()}*")
-        print(f"  -> NB Prediction:  *{nb_pred.upper()}*\n")
-
-custom_samples = ["The item arrived broken and late.", "It works incredibly well, love it!", "not worht the money", "looks good"]
-predict_sentiment(custom_samples)  
-
-
-############################################################
-##### NB-LG-Sentiment_Analysis.ipynb
-############################################################
-
-# --- cell 0 ---
-#NB and LR sentiment analysis and text analytics
-
-# --- cell 1 ---
-import pandas as pd 
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import accuracy_score
-
-# --- cell 2 ---
-#mock dataset 
-data={
-    'text': [
-        "I absolutely love this product, it works perfectly!",
-        "This is the worst purchase I have ever made.",
-        "It's okay, nothing special but does the job",
-        "Fantastic customer service and beautiful design",
-        "Horrible quality, it broke on the first day",
-        "I am highly satisfied with the fast shipping",
-        "Waste of money. do not but this product",
-        "Pretty good value for the price, I recommend it",
-        "item arrived late and the product was damaged, very disappointed"
-    ],
-    'sentiment': ['positive', 'negative', 'neutral', 'positive', 'negative', 'positive', 'negative', 'positive', 'negative']
-}
-
-# --- cell 3 ---
-#load into a pandas dataframe 
-df=pd.DataFrame(data)
-
-#1.split dataset inot features (X) and target labels (Y)
-x=df['text']
-y=df['sentiment']
-
-#2.split into training and testing
-x_train, x_test, y_train, y_test=train_test_split(x,y, test_size=0.2,random_state=42)
-
-#3.text vertorization (TD-IDF feature extraction)
-vectorizer=TfidfVectorizer(stop_words='english', lowercase=True)
-x_train_vec=vectorizer.fit_transform(x_train)
-x_test_vec=vectorizer.transform(x_test)
-
-#4.initialize and train classifiers
-lr_model=LogisticRegression()
-lr_model.fit(x_train_vec, y_train)
-
-nb_model=MultinomialNB()
-nb_model.fit(x_train_vec, y_train)
-
-#5.evaluate and compare models 
-lr_preds=lr_model.predict(x_test_vec)
-nb_preds=nb_model.predict(x_test_vec)
-
-print("Model Accuracy Comparison")
-print(f"Logistic Regression Accuracy:{accuracy_score(y_test, lr_preds)*100:.2f}%")
-print(f"Multinominal Naive Bayes Accuracy:{accuracy_score(y_test, nb_preds)*100:.2f}%\n")
-
-#6.predict sentiment on new custom texts 
-def predict_sentiment(new_texts):
-    new_texts_vec=vectorizer.transform(new_texts)
-
-    lr_predictions=lr_model.predict(new_texts_vec)
-    nb_predictions=nb_model.predict(new_texts_vec)
-
-    print("testing custom input")
-    for text, lr_pred, nb_pred in zip(new_texts, lr_predictions, nb_predictions):
-        print(f"Text: '{text}'")
-        print(f"LR Prediction:**{lr_pred.upper()}**")
-        print(f"NB Prediction:**{nb_pred.upper()}**\n")
-
-custom_samples=["The item arrived broken and late", "it wokrs incredibly well, love it!", "looks good"]
-predict_sentiment(custom_samples)
-
-# --- cell 4 ---
-#homework - in this check the divisions 
-from sklearn.datasets import fetch_20newsgroups
-
-
-############################################################
-##### sentiment_analysis_using_naive_bayes.ipynb
-############################################################
-
-# --- cell 0 ---
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import accuracy_score
-
-# 1. Mock Dataset (Replace with your actual data)
-data = {
-    'text': [
-        'I absolutely love this product, it works perfectly!',
-        'This is the worst purchase I have ever made',
-        'Its ok, nothing speacial but does the job',
-        'Fantastic customer service and beautiful design',
-        'Horrible quality, it broke ont the first day',
-        'I am highly satified with the fast shipping',
-        'Waste of money. Do not buy this product',
-        'Pretty good value for the price, I recommend it',
-        'Item arived late and the product was damaged, very dissapointed'
-    ],
-    'sentiment':['positive','negative','neutral','positive','negative','positive','negative','positive','negative']
-}
-
-df = pd.DataFrame(data)
-
-# --- cell 1 ---
-X = df['text']
-y = df['sentiment']
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-vectorizer = TfidfVectorizer(stop_words='english', lowercase = True)
-
-# --- cell 2 ---
-vectorizer = TfidfVectorizer(stop_words='english', lowercase = True)
-X_train_vec = vectorizer.fit_transform(X_train)
-X_test_vec = vectorizer.transform(X_test)
-
-#initialize the train classifiers
-lr_model = LogisticRegression()
-lr_model.fit(X_train_vec, y_train)
-
-# --- cell 3 ---
-nb_model = MultinomialNB()
-nb_model.fit(X_train_vec, y_train)
-
-# --- cell 4 ---
-lr_preds = lr_model.predict(X_test_vec)
-nb_preds = nb_model.predict(X_test_vec)
-
-# --- cell 5 ---
-print("----Model Accuracy Prediction----")
-print(f"Logistic Regression Accuracy: {accuracy_score(y_test, lr_preds) * 100:.2f}%")
-print(f'Multinomial Naive Bayes Accuracy: {accuracy_score(y_test, nb_preds) * 100:.2f}%')
-
-# --- cell 6 ---
-def predict_sentiment(new_texts):
-    new_texts_vec = vectorizer.transform(new_texts)
-
-    lr_predictions = lr_model.predict(new_texts_vec)
-    nb_predictions = nb_model.predict(new_texts_vec)
-
-    print('----- Testing custom input-----')
-
-    for text,lr_pred,nb_pred in zip(new_texts,lr_predictions,nb_predictions):
-        print(f"Texts:'{text}'")
-        print(f"LR Predictions: *{lr_pred.upper()}*")
-        print(f" NB predictions:*{nb_pred.upper()}*\n")
-
-custom_samples = ['The item arrived broken and late', 'It works well!, I love it!',
-                  'Its good but needs improvement']
-
-# --- cell 7 ---
-predict_sentiment(custom_samples)
-
-
-############################################################
-##### MLM_8th_OCT.ipynb
-############################################################
-
-# --- cell 0 ---
-from sklearn.datasets import fetch_20newsgroups
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import.fit, accuracy_score,classification_report
-
-# --- cell 1 ---
-#Load the 20 newsgroups dataset 
-newsgroups=fetch_20newsgroups(subset='all')
-x,y=newsgroups.data,newsgroups.target
-
-# --- cell 2 ---
-#split the dataset into training and test sets 
-x_train,x_test,y_train,y_test=train_test_split(x,y,test_size=0.2,random_state=42)
-
-# --- cell 3 ---
-#Intialize the TTfidfVectorizer
-vectorizer=TfidfVectorizer(stop_words='english',max_df=0.5)
-
-# --- cell 4 ---
-#fit and Transforms the training data,and transform the test data 
-x_train_tfidf=vectorizer.fit_transform(x_train)
-x_test_tfidf=vectorizer.transform(x_test)
-
-# --- cell 5 ---
-#Intialize the Multinomial Naive Bayes classifier 
-nb_classifier=MultinomialNB()
-
-# --- cell 6 ---
-#Train the classifier on the training data 
-nb_classifier.fit(x_train_tfidf,y_train)
-
-# --- cell 7 ---
-#predict the labels for the test data 
-y_pred=nb_classifier.predict(x_test_tfidf)
-
-# --- cell 8 ---
-#Calculate the accuracy 
-accuracy=accuracy_score(y_test,y_pred)
-
-# --- cell 9 ---
-#Generate a classification report 
-class_report =classification_report(y_test,y_pred,target_names=newsgroups.target_names) 
-
-print(f"Accuracy: {accuracy}\n")
-print(f"Classification Report:\n{class_report}")
-
-
-############################################################
-##### Naivebayes_newsgroup.ipynb
-############################################################
-
-# --- cell 0 ---
-
-from sklearn.datasets import fetch_20newsgroups
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import accuracy_score, classification_report
-
-# --- cell 1 ---
-#load the 20 newsgroup dataset 
-newsgroups=fetch_20newsgroups(subset='all')
-x,y=newsgroups.data, newsgroups.target
-
-# --- cell 2 ---
-#split the dataset into training and testing sets 
-x_train, x_test, y_train , y_test=train_test_split(x,y, test_size=0.2, random_state=42)
-
-# --- cell 3 ---
-#initialize the TfidfVectorizer
-vectorizer= TfidfVectorizer(stop_words='english', max_df=0.5)
-
-# --- cell 4 ---
-#fit and transform the training data and transform the test data 
-x_train_tfidf=vectorizer.fit_transform(x_train)
-x_test_tfidf=vectorizer.transform(x_test)
-
-# --- cell 5 ---
-#initialize the multinominal naive bayes classifier 
-nb_classifier=MultinomialNB()
-
-# --- cell 6 ---
-#train the classifier on the training data 
-nb_classifier.fit(x_train_tfidf, y_train)
-
-# --- cell 7 ---
-#predict the labels for the test data 
-y_pred=nb_classifier.predict(x_test_tfidf)
-
-# --- cell 8 ---
-#calculate the accuracy
-accuracy=accuracy_score(y_test, y_pred)
-
-# --- cell 9 ---
-#generate a classificaation report
-class_report=classification_report(y_test, y_pred, target_names=newsgroups.target_names)
-
-print(f"Accuracy:{accuracy}\n")
-print(f"Classification Report:\n{class_report}")
-
-
-############################################################
-##### 8th_october_naive_bayes.ipynb
-############################################################
-
-# --- cell 0 ---
-from sklearn.datasets import fetch_20newsgroups
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.datasets import fetch_20newsgroups
-from sklearn.metrics import accuracy_score, classification_report
-
-# --- cell 1 ---
-newsgroups = fetch_20newsgroups(subset='all', remove=('headers', 'footers', 'quotes'))
-
-news_df = pd.DataFrame({
-    'text': newsgroups.data,
-    'target': newsgroups.target,
-    'category': [newsgroups.target_names[i] for i in newsgroups.target]
-})
-
-news_df.head()
-
-# --- cell 2 (markdown) ---
-# ### Meaning based matching - vector databases
-
-# --- cell 3 ---
-mewsgroup = fetch_20newsgroups(subset='all')
-X,y = mewsgroup.data, mewsgroup.target
-
-# --- cell 4 ---
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# --- cell 5 ---
-vectorizer = TfidfVectorizer(stop_words='english', max_df = 0.5)
-
-# --- cell 6 ---
-X_train_tfidf = vectorizer.fit_transform(X_train)
-X_test_tfidf = vectorizer.transform(X_test)
-
-# --- cell 7 ---
-nb_classifier = MultinomialNB()
-nb_classifier.fit(X_train_tfidf, y_train)
-
-# --- cell 8 ---
-y_pred = nb_classifier.predict(X_test_tfidf)
-
-# --- cell 9 ---
-accuracy = accuracy_score(y_test, y_pred)
-class_report = classification_report(y_test, y_pred, target_names=newsgroups.target_names)
-
-# --- cell 10 ---
-print(f"Accuracy: {accuracy:.4f}")
-print(f"Classification Report: \n{class_report}")
-
-
-############################################################
-##### RandomForestIRIS.ipynb
-############################################################
-
-# --- cell 0 ---
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.datasets import load_iris
-from sklearn.metrics import accuracy_score, classification_report
-from sklearn.ensemble import RandomForestClassifier
-
-# --- cell 1 ---
-data = load_iris()
-X=data.data
-y=data.target
-
-# splitting the data
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# creat a Random Forest Classifier
-rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42)
-rf_classifier.fit(X_train, y_train)
-
-y_pred = rf_classifier.predict(X_test)
-
-accuracy = accuracy_score(y_test, y_pred)
-classsification_report_str = classification_report(y_test, y_pred)
-print(f"Accuracy: {accuracy}")
-print(f"Classification Report:\n{classsification_report_str}")
-
-# --- cell 2 ---
-from xgboost import XGBClassifier,plot_importance
-import seaborn as sns
-
-# --- cell 3 ---
-
-X=data.data
-y=data.target
-
-# splitting the data
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.35, random_state=42)
-
-xgb_classifier = XGBClassifier(objective='multi:softprob', num_class=3, eval_metric='mlogloss', random_state=42, use_label_encoder=False)
-xgb_classifier.fit(X_train, y_train)
-
-y_pred_xgb = xgb_classifier.predict(X_test)
-
-print(f"XGBoost Accuracy: {accuracy_score(y_test, y_pred_xgb)}")
-print(f"XGBoost Classification Report:\n{classification_report(y_test, y_pred_xgb)}")
-plot_importance(xgb_classifier)
-
-# --- cell 4 ---
-
-from sklearn.metrics import confusion_matrix
-
-
-cm = confusion_matrix(y_test, y_pred_xgb)
-
-plt.figure(figsize=(8, 6))
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=data.target_names, yticklabels=data.target_names)
-plt.xlabel('Predicted')
-plt.ylabel('True')
-plt.title('Confusion Matrix')
-plt.show()
-
-
-############################################################
-##### NaiveBayesiris.ipynb
-############################################################
-
-# --- cell 0 ---
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.naive_bayes import GaussianNB
-from sklearn.neighbors import KNeighborsClassifier
-
-# --- cell 1 ---
-from sklearn.datasets import load_iris
-from sklearn.metrics import accuracy_score, classification_report
-
-# Load the data set
-iris = load_iris()
-x=iris.data
-y=iris.target
-
-# split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
-
-#  3. Initialize and train the Naive Bayes model
-model=GaussianNB()
-model.fit(X_train,y_train)
-
-#4. Make predictions on the test set
-y_pred=model.predict(X_test)
-
-# 5. Evaluate the model's performance
-print(f"Accuracy: {accuracy_score(y_test,y_pred)*100:.2f}%")
-print("\nClassification Report:\n", classification_report(y_test,y_pred))
-
-# --- cell 2 ---
-import pandas as pd
-raw_data = pd.read_csv("D:\\MSC BA\\SEM 3\\ClassWork\\MLM\\creditcard(in).csv")
-raw_data
-
-# --- cell 3 ---
-X= raw_data.drop("Class", axis = 1)  
-y = raw_data["Class"]
-
-
-############################################################
-##### XGBoost_and_RF_churndata_with_feature_cross_validation.ipynb
-############################################################
-
-# --- cell 0 ---
-import os 
+# =====================================================================
+# COMMON IMPORTS
+# =====================================================================
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 
-from sklearn.model_selection import train_test_split,cross_val_score, KFold
-from sklearn.preprocessing import StandardScaler,LabelEncoder, normalize
+from sklearn.datasets import load_iris, fetch_20newsgroups
+from sklearn.model_selection import (train_test_split, cross_val_score, KFold,
+                                     GridSearchCV, StratifiedKFold)
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.decomposition import PCA
+from sklearn.pipeline import Pipeline
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, ConfusionMatrixDisplay
+from sklearn.naive_bayes import GaussianNB, MultinomialNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (accuracy_score, classification_report,
+                             confusion_matrix, ConfusionMatrixDisplay)
+from xgboost import XGBClassifier, plot_importance
 
-from xgboost import XGBClassifier
 
-# --- cell 1 ---
-# Load data
-
+# =====================================================================
+# 1. CHURN DATA: RANDOM FOREST vs GRADIENT BOOSTING vs XGBOOST (with CV)
+# =====================================================================
 df = pd.read_excel(r"D:\MSC BA\SEM 3\ClassWork\MLM\ChurnData.xlsx")
-
 df.head()
 
-# --- cell 2 ---
 target_col = 'churn'
-
-if target_col not in df.columns: 
+if target_col not in df.columns:
     target_col = df.columns[-1]
     print(f"'{target_col}' not found. Using the last column '{target_col}' as target")
 
-# Handle Missing Values
+# Handle missing values
 df = df.dropna()
 
-# --- cell 3 ---
 # Encode categorical text variables
 le = LabelEncoder()
 for col in df.select_dtypes(include=['object']).columns:
@@ -877,32 +45,30 @@ for col in df.select_dtypes(include=['object']).columns:
 X = df.drop(columns=[target_col])
 y = df[target_col]
 
-# Split into train/test sets (80/20 split)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+# 80/20 train-test split (stratified)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y)
 
-# Feature scaling (optional for tree-based models, but required for models like SVM, Logistic Regression, etc.)
+# Feature scaling (optional for tree models; needed for SVM, LR etc.)
 # scaler = StandardScaler()
 # X_train = scaler.fit_transform(X_train)
 # X_test = scaler.transform(X_test)
 
-# --- cell 4 ---
-# Model Initialization
-
+# Model initialization
 models = {
     'Random Forest': RandomForestClassifier(n_estimators=100, random_state=42),
     'Gradient Boosting': GradientBoostingClassifier(n_estimators=100, random_state=42),
-    'XGBoost': XGBClassifier(n_estimators=100, learning_rate=0.1, random_state=42,eval_metric='logloss', use_label_encoder=False)
+    'XGBoost': XGBClassifier(n_estimators=100, learning_rate=0.1, random_state=42,
+                             eval_metric='logloss', use_label_encoder=False)
 }
 
-# evaluate models using cross-validation loop
-
-kf=KFold(n_splits=5, shuffle=True, random_state=42)
+# Cross-validation splitter
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
 
 for name, model in models.items():
     print(f"Model: {name}")
 
-# Fit model
-
+    # Fit model
     model.fit(X_train, y_train)
 
     # Predict on test set
@@ -922,16 +88,248 @@ for name, model in models.items():
     # Cross-validation scores
     cv_scores = cross_val_score(model, X, y, cv=kf)
     print(f"Cross-validation scores: {cv_scores}")
-    print(f"Mean CV score: {np.mean(cv_scores)}", 
+    print(f"Mean CV score: {np.mean(cv_scores)}",
           f"Standard Deviation of CV scores: {np.std(cv_scores)}")
     print("-" * 50)
 
-# --- cell 5 ---
-# feature importance
+# Feature importance (uses the LAST model from the loop = XGBoost)
 print(" Top 5 Feature Importance:")
 importances = model.feature_importances_
 indices = np.argsort(importances)[::-1]
 
 for i in range(min(5, len(X.columns))):
     print(f"{i + 1}. Feature: {X.columns[indices[i]]}, Importance: {importances[indices[i]]:.4f}")
-```
+
+
+# =====================================================================
+# 2. GAUSSIAN NAIVE BAYES ON IRIS (+ loading credit card data)
+# =====================================================================
+iris = load_iris()
+x = iris.data
+y = iris.target
+
+X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+
+# Initialize and train the Naive Bayes model
+model = GaussianNB()
+model.fit(X_train, y_train)
+
+# Predict on the test set
+y_pred = model.predict(X_test)
+
+# Evaluate
+print(f"Accuracy: {accuracy_score(y_test, y_pred)*100:.2f}%")
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+# Load credit card fraud data (setup for a later exercise)
+raw_data = pd.read_csv("D:\\MSC BA\\SEM 3\\ClassWork\\MLM\\creditcard(in).csv")
+raw_data
+
+X = raw_data.drop("Class", axis=1)
+y = raw_data["Class"]
+
+
+# =====================================================================
+# 3. RANDOM FOREST AND XGBOOST ON IRIS
+# =====================================================================
+data = load_iris()
+X = data.data
+y = data.target
+
+# --- Random Forest ---
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+rf_classifier = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_classifier.fit(X_train, y_train)
+
+y_pred = rf_classifier.predict(X_test)
+
+accuracy = accuracy_score(y_test, y_pred)
+classsification_report_str = classification_report(y_test, y_pred)
+print(f"Accuracy: {accuracy}")
+print(f"Classification Report:\n{classsification_report_str}")
+
+# --- XGBoost (note the different test_size = 0.35) ---
+X = data.data
+y = data.target
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.35, random_state=42)
+
+xgb_classifier = XGBClassifier(objective='multi:softprob', num_class=3,
+                               eval_metric='mlogloss', random_state=42,
+                               use_label_encoder=False)
+xgb_classifier.fit(X_train, y_train)
+
+y_pred_xgb = xgb_classifier.predict(X_test)
+
+print(f"XGBoost Accuracy: {accuracy_score(y_test, y_pred_xgb)}")
+print(f"XGBoost Classification Report:\n{classification_report(y_test, y_pred_xgb)}")
+plot_importance(xgb_classifier)
+
+# Confusion matrix heatmap for XGBoost
+cm = confusion_matrix(y_test, y_pred_xgb)
+
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=data.target_names, yticklabels=data.target_names)
+plt.xlabel('Predicted')
+plt.ylabel('True')
+plt.title('Confusion Matrix')
+plt.show()
+
+
+# =====================================================================
+# 4. SKLEARN PIPELINE + GRIDSEARCHCV (Scaler -> PCA -> KNN on Iris)
+# =====================================================================
+data = load_iris()
+X, y = data.data, data.target
+labels = data.target_names
+
+# Demo pipeline with fixed parameters (for explanation)
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),                  # step 1: standardize features
+    ('pca', PCA(n_components=2)),                  # step 2: reduce to 2 dimensions
+    ('knn', KNeighborsClassifier(n_neighbors=5))   # step 3: KNN classifier
+])
+
+# Train/test split (stratify keeps class proportions equal)
+x_train, x_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y)
+
+# Fit and score
+pipeline.fit(x_train, y_train)
+test_score = pipeline.score(x_test, y_test)
+print(f"{test_score:.3f}")
+
+# Predictions + confusion matrix
+y_pred = pipeline.predict(x_test)
+
+conf_matrix = confusion_matrix(y_test, y_pred)
+
+plt.figure()
+sns.heatmap(conf_matrix, annot=True, cmap='Blues', fmt='d',
+            xticklabels=labels, yticklabels=labels)
+plt.title("Classification pipeline confusion matrix")
+plt.xlabel('Predicted')
+plt.ylabel("Actual")
+plt.tight_layout()
+plt.show()
+
+# Actual pipeline: no parameters fixed yet
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),
+    ('pca', PCA()),
+    ('knn', KNeighborsClassifier())
+])
+
+# Parameter grid to search (step name + double underscore + parameter)
+param_grid = {
+    'pca__n_components': [2, 3],
+    'knn__n_neighbors': [3, 5, 6]
+}
+
+# Cross-validation method
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+# Grid search
+best_model = GridSearchCV(estimator=pipeline, param_grid=param_grid,
+                          cv=cv, scoring='accuracy', verbose=2)
+
+best_model.fit(x_train, y_train)
+
+test_score = best_model.score(x_test, y_test)
+print(f"{test_score:.3f}")      # accuracy improved from 90% to 93%
+
+best_model.best_params_         # best parameter combination
+
+
+# =====================================================================
+# 5. MULTINOMIAL NAIVE BAYES ON 20 NEWSGROUPS (text classification)
+# =====================================================================
+newsgroups = fetch_20newsgroups(subset='all')
+x, y = newsgroups.data, newsgroups.target
+
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+
+vectorizer = TfidfVectorizer(stop_words='english', max_df=0.5)
+
+x_train_tfidf = vectorizer.fit_transform(x_train)   # learn vocabulary on train only
+x_test_tfidf = vectorizer.transform(x_test)
+
+nb_classifier = MultinomialNB()
+nb_classifier.fit(x_train_tfidf, y_train)
+
+y_pred = nb_classifier.predict(x_test_tfidf)
+
+accuracy = accuracy_score(y_test, y_pred)
+class_report = classification_report(y_test, y_pred, target_names=newsgroups.target_names)
+
+print(f"Accuracy:{accuracy}\n")
+print(f"Classification Report:\n{class_report}")
+
+
+# =====================================================================
+# 6. SENTIMENT ANALYSIS: NAIVE BAYES vs LOGISTIC REGRESSION (TF-IDF)
+# =====================================================================
+data = {
+    'text': [
+        "I absolutely love this product, it works perfectly!",
+        "This is the worst purchase I have ever made.",
+        "It's okay, nothing special but does the job",
+        "Fantastic customer service and beautiful design",
+        "Horrible quality, it broke on the first day",
+        "I am highly satisfied with the fast shipping",
+        "Waste of money. do not buy this product",
+        "Pretty good value for the price, I recommend it",
+        "item arrived late and the product was damaged, very disappointed"
+    ],
+    'sentiment': ['positive', 'negative', 'neutral', 'positive', 'negative',
+                  'positive', 'negative', 'positive', 'negative']
+}
+
+df = pd.DataFrame(data)
+
+# 1. Features (X) and labels (y)
+x = df['text']
+y = df['sentiment']
+
+# 2. Train/test split
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
+
+# 3. TF-IDF vectorization
+vectorizer = TfidfVectorizer(stop_words='english', lowercase=True)
+x_train_vec = vectorizer.fit_transform(x_train)
+x_test_vec = vectorizer.transform(x_test)
+
+# 4. Train both classifiers
+lr_model = LogisticRegression()
+lr_model.fit(x_train_vec, y_train)
+
+nb_model = MultinomialNB()
+nb_model.fit(x_train_vec, y_train)
+
+# 5. Evaluate
+lr_preds = lr_model.predict(x_test_vec)
+nb_preds = nb_model.predict(x_test_vec)
+
+print("Model Accuracy Comparison")
+print(f"Logistic Regression Accuracy: {accuracy_score(y_test, lr_preds)*100:.2f}%")
+print(f"Multinomial Naive Bayes Accuracy: {accuracy_score(y_test, nb_preds)*100:.2f}%\n")
+
+# 6. Predict sentiment for brand-new text
+def predict_sentiment(new_texts):
+    new_texts_vec = vectorizer.transform(new_texts)
+
+    lr_predictions = lr_model.predict(new_texts_vec)
+    nb_predictions = nb_model.predict(new_texts_vec)
+
+    print("Testing custom input")
+    for text, lr_pred, nb_pred in zip(new_texts, lr_predictions, nb_predictions):
+        print(f"Text: '{text}'")
+        print(f"LR Prediction: **{lr_pred.upper()}**")
+        print(f"NB Prediction: **{nb_pred.upper()}**\n")
+
+custom_samples = ["The item arrived broken and late",
+                  "it works incredibly well, love it!",
+                  "looks good"]
+predict_sentiment(custom_samples)
