@@ -1,0 +1,742 @@
+# =====================================================================
+# ALL LIBRARIES (imported once)
+# =====================================================================
+from __future__ import print_function
+
+import warnings
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from sklearn import datasets, metrics
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import (
+    MinMaxScaler, StandardScaler, LabelEncoder,
+    OneHotEncoder, OrdinalEncoder, normalize
+)
+from sklearn.utils.class_weight import compute_sample_weight
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, plot_tree
+from sklearn.svm import SVC, LinearSVC
+from sklearn.linear_model import LogisticRegression
+from sklearn.multiclass import OneVsRestClassifier, OneVsOneClassifier
+from sklearn.metrics import (
+    accuracy_score, classification_report,
+    mean_squared_error, roc_auc_score
+)
+
+%matplotlib inline
+warnings.filterwarnings('ignore')
+
+
+# =====================================================================
+# 1. CUSTOMER & PURCHASES - DATA CLEANING / INTEGRATION / TRANSFORMATION
+#    (cust_pur.ipynb)
+# =====================================================================
+customers = pd.read_csv("D:\\MSC BA\\SEM 3\\ClassWork\\MLM\\customers_raw.csv")
+purchases = pd.read_csv("D:\\MSC BA\\SEM 3\\ClassWork\\MLM\\purchases.csv")
+
+print(customers.info())
+print(purchases.info())
+
+print(customers.isnull().sum())
+print(purchases.isnull().sum())
+
+# dropping duplicates in the data
+customers = customers.drop_duplicates()
+purchases = purchases.drop_duplicates()
+
+print(customers.info())
+print(purchases.info())
+
+# changing the city column letters to same case eg - from BANGALORE, Delhi, mumbai to Bangalore, Delhi and Mumbai
+customers["City"] = customers["City"].str.title()
+
+# filling the missing values
+customers["Name"] = customers["Name"].fillna("Unknown")
+customers["Age"] = customers["Age"].fillna(customers["Age"].median())
+customers["Salary"] = customers["Salary"].fillna(customers["Salary"].median())
+
+print(customers.head())
+
+# standardization (inter quatile range can also be taken)
+scaler = StandardScaler()
+customers[["Age", "Salary"]] = scaler.fit_transform(customers[["Age", "Salary"]])
+print(customers.head())
+
+combined = pd.merge(customers, purchases, on="CustomerID", how="inner")
+print(combined.head())
+
+# 1a - remove exact duplicate rows
+before = len(customers)
+df = customers.drop_duplicates(subset="CustomerID", keep="first")
+print(f"(a) Removed duplicates: {before}-> {len(df)} rows")
+
+# 1b - standardize inconsistent categorical text
+df["City"] = df["City"].str.strip().str.title()
+print("(b) Standardized 'City' text casing:")
+print(df["City"].unique())
+
+# 1c- Handle missing values
+df["Name"] = df["Name"].fillna("Unknown")
+df["Age"] = df["Age"].fillna(df["Age"].median())
+df["Salary"] = df["Salary"].fillna(df["Salary"].median())
+print("\n(c) Missing values after imputation:")
+print(df.isnull().sum())
+
+# 1d- Handle outliers using IQR method
+def cap_outliers_iqr(series):
+    q1, q3 = series.quantile([0.25, 0.75])
+    iqr = q3 - q1
+    lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    return series.clip(lower, upper)
+
+print("\n(d) Outlier capping (IQR method) on Age and Salary:")
+print("Before->", df[["Age", "Salary"]].describe().loc[["min", "max"]].to_dict())
+df["Age"] = cap_outliers_iqr(df["Age"])
+df["Salary"] = cap_outliers_iqr(df["Salary"])
+print("After ->", df[["Age", "Salary"]].describe().loc[["min", "max"]].to_dict())
+
+print("\nCleaned dataset:")
+print(df)
+
+df_purchases = pd.DataFrame(purchases)
+print("Second source (Purchases table):")
+print(df_purchases)
+
+df_integrated = pd.merge(df, df_purchases, on="CustomerID", how="left")
+
+df_integrated["TotalPurchases"] = df_integrated["TotalPurchases"].fillna(0)
+df_integrated["MemberSince"] = df_integrated["MemberSince"].fillna(df_integrated["MemberSince"].median())
+
+# Loyalty Points based on Total Purchases
+df_integrated.loc[(df_integrated["TotalPurchases"] >= 1) & (df_integrated["TotalPurchases"] <= 5), "LoyaltyPoints"] = 1
+df_integrated.loc[(df_integrated["TotalPurchases"] >= 6) & (df_integrated["TotalPurchases"] <= 10), "LoyaltyPoints"] = 2
+df_integrated.loc[(df_integrated["TotalPurchases"] >= 11) & (df_integrated["TotalPurchases"] <= 15), "LoyaltyPoints"] = 3
+df_integrated.loc[(df_integrated["TotalPurchases"] >= 16) & (df_integrated["TotalPurchases"] <= 20), "LoyaltyPoints"] = 4
+
+# Loyalty Group
+group_map = {
+    1: "Bronze",
+    2: "Silver",
+    3: "Gold",
+    4: "Platinum"
+}
+
+# Cashback
+cashback_map = {
+    1: 100,
+    2: 200,
+    3: 300,
+    4: 400
+}
+
+df_integrated["LoyaltyGroup"] = df_integrated["LoyaltyPoints"].map(group_map)
+df_integrated["Cashback"] = df_integrated["LoyaltyPoints"].map(cashback_map)
+
+current_year = 2026
+df_integrated["MembershipYears"] = current_year - df_integrated["MemberSince"]
+
+# Active if the customer averages at least 1 purchase per year
+purchase_rate = (
+    df_integrated["TotalPurchases"] /
+    df_integrated["MembershipYears"]
+)
+
+df_integrated["MembershipStatus"] = np.where(
+    purchase_rate >= 1,
+    "Active",
+    "Inactive"
+)
+
+print("\nIntegrated dataset (customer+purchase info merged on Customer ID):")
+print(df_integrated)
+
+# data transformation
+df_t = df_integrated.copy()
+
+# 3a - Normalization (Min-max scaling :0,1)- useful for distance based models
+minmax = MinMaxScaler()
+df_t[["Age_MinMax", "Salary_MinMax"]] = minmax.fit_transform(df_t[["Age", "Salary"]])
+
+# 3b - Standardization
+zscore = StandardScaler()
+df_t[["Age_Z", "Salary_Z"]] = zscore.fit_transform(df_t[["Age", "Salary"]])
+
+# 3c - Encoding categorical variables
+le = LabelEncoder()
+df_t["Gender_Encoded"] = le.fit_transform(df_t["Gender"])
+df_t = pd.get_dummies(df_t, columns=["City"], prefix="City")
+
+# 3d - discretization/binning - convert continuous age into categorical buckets
+bins = [0, 25, 35, 50, 100]
+labels = ["Young", "Adult", "MidAge", "Senior"]
+df_t["Age_Group"] = pd.cut(df_integrated["Age"], bins=bins, labels=labels)
+
+print("Transformed dataset (scaled, encoded and binned):")
+show_cols = ["CustomerID", "Age", "Age_MinMax", "Age_Z", "Age_Group", "Salary",
+             "Salary_MinMax", "Salary_Z", "Gender", "Gender_Encoded"]
+print(df_t[show_cols])
+
+print("\nOne-hot encoded City columns added:")
+city_cols = [c for c in df_t.columns if c.startswith("City_")]
+print(df_t[["CustomerID"] + city_cols])
+
+
+# =====================================================================
+# 2. DECISION TREE - DRUG200 DATASET
+#    (decisiontree.ipynb)
+# =====================================================================
+my_data = pd.read_csv("D:\\MSC BA\\SEM 3\\ClassWork\\MLM\\drug200.csv")
+my_data
+
+## Label encoder
+label_encoder = LabelEncoder()
+my_data['Sex'] = label_encoder.fit_transform(my_data['Sex'])
+my_data['BP'] = label_encoder.fit_transform(my_data['BP'])
+my_data['Cholesterol'] = label_encoder.fit_transform(my_data['Cholesterol'])
+my_data
+
+my_data.isnull().sum()
+
+# custom Label encoding for drug name
+custom_map = {'drugA': 0, 'drugB': 1, 'drugC': 2, 'drugX': 3, 'drugY': 4}
+my_data['Drug_num'] = my_data['Drug'].map(custom_map)
+my_data
+
+my_data.drop(['Drug'], axis=1).corr()['Drug_num']
+
+category_counts = my_data['Drug'].value_counts()
+
+# Plot the count plot
+plt.bar(category_counts.index, category_counts.values, color='blue')
+plt.xlabel('Drug')
+plt.ylabel('Count')
+plt.title('Category Distribution')
+plt.xticks(rotation=45)  # Rotate labels for better readability if needed
+plt.show()
+
+my_data['Drug'].value_counts()  # checking class imbalance
+
+y = my_data['Drug']
+x = my_data.drop(['Drug', 'Drug_num'], axis=1)
+
+x_trainset, x_testset, y_trainset, y_testset = train_test_split(x, y, test_size=0.3, random_state=32)
+
+drugTree = DecisionTreeClassifier(criterion="entropy", max_depth=4)
+
+drugTree.fit(x_trainset, y_trainset)
+
+tree_predictions = drugTree.predict(x_testset)
+
+print("Decision trees' accuracy:", metrics.accuracy_score(y_testset, tree_predictions))
+
+plot_tree(drugTree)
+plt.show()
+
+
+# =====================================================================
+# 3. DECISION TREE - IRIS DATASET
+#    (irisdecisiontree.ipynb)
+# =====================================================================
+iris = load_iris()
+my_data = pd.DataFrame(iris.data, columns=iris.feature_names)
+my_data['Species'] = pd.Categorical.from_codes(iris.target, iris.target_names)
+my_data
+
+my_data.isnull().sum()
+
+# custom label encoding for species (same pattern as Drug_num)
+custom_map = {'setosa': 0, 'versicolor': 1, 'virginica': 2}
+my_data['Species_num'] = my_data['Species'].map(custom_map)
+my_data
+
+my_data.drop(['Species'], axis=1).corr()['Species_num']
+
+category_counts = my_data['Species'].value_counts()
+
+# Plot the count plot
+plt.bar(category_counts.index, category_counts.values, color='blue')
+plt.xlabel('Species')
+plt.ylabel('Count')
+plt.title('Category Distribution')
+plt.xticks(rotation=45)
+plt.show()
+
+my_data['Species'].value_counts()  # checking class imbalance
+
+y = my_data['Species']
+x = my_data.drop(['Species', 'Species_num'], axis=1)
+
+x_trainset, x_testset, y_trainset, y_testset = train_test_split(x, y, test_size=0.3, random_state=42)
+
+irisTree = DecisionTreeClassifier(criterion="gini", max_depth=4)
+
+irisTree.fit(x_trainset, y_trainset)
+
+tree_predictions = irisTree.predict(x_testset)
+
+print("Decision tree's accuracy:", metrics.accuracy_score(y_testset, tree_predictions))
+
+plt.figure(figsize=(12, 8))
+plot_tree(irisTree, feature_names=x.columns, class_names=irisTree.classes_, filled=True)
+plt.show()
+
+
+# =====================================================================
+# 4. REGRESSION TREE - NYC YELLOW TAXI TIP AMOUNT
+#    (Regression_Tree.ipynb)
+# =====================================================================
+raw_data = pd.read_csv("D:\\MSC BA\\SEM 3\\ClassWork\\MLM\\yellow_tripdata.csv")
+raw_data
+
+correlation_values = raw_data.corr()['tip_amount'].drop('tip_amount')
+correlation_values.plot(kind='barh', figsize=(10, 6))
+
+# extract the labels from the dataframe
+y = raw_data[['tip_amount']].values.astype('float32')
+
+# drop the target variable from the feature matrix
+proc_data = raw_data.drop(['tip_amount'], axis=1)
+
+# get the features matrix used for training
+X = proc_data.values
+
+# normalize the feature matrix
+X = normalize(X, axis=1, norm='l1', copy=False)
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# build a regression tree
+# for reproducible output across multiple function calls, set random_state to a given integer
+dt_reg = DecisionTreeRegressor(criterion='squared_error',
+                               max_depth=8,
+                               random_state=35)
+
+dt_reg.fit(X_train, y_train)
+
+y_pred = dt_reg.predict(X_test)
+
+# evaluate mean squared error on test dataset
+mse_score = mean_squared_error(y_test, y_pred)
+print('MSE score: {0:.3f}'.format(mse_score))
+
+r2_score = dt_reg.score(X_test, y_test)
+print('R^2 score: {0:.3f}'.format(r2_score))
+
+# homework given on 20th Aug
+# 1- make the max depth 12
+# 2- identify the top 3 features with the most effect on the tip_amount
+
+# homework 1
+dt_reg1 = DecisionTreeRegressor(criterion='squared_error',
+                                max_depth=12,
+                                random_state=35)
+
+dt_reg1.fit(X_train, y_train)
+
+y_pred = dt_reg1.predict(X_test)
+
+# evaluate mean squared error on test dataset
+mse_score1 = mean_squared_error(y_test, y_pred)
+print('MSE score: {0:.3f}'.format(mse_score1))
+
+r2_score1 = dt_reg1.score(X_test, y_test)   # FIX: was dt_reg (depth 8); now uses the depth-12 model
+print('R^2 score: {0:.3f}'.format(r2_score1))
+
+# homework 2 - top 3 features
+feature_names = raw_data.drop(columns=['tip_amount']).columns
+
+importances = pd.Series(dt_reg.feature_importances_, index=feature_names)
+
+top_3 = importances.nlargest(3)
+
+print("Top 3 features affecting tip amount:")
+print(top_3)
+
+
+# =====================================================================
+# 5. DECISION TREE vs LINEAR SVM - CREDIT CARD FRAUD (IMBALANCED DATA)
+#    (DecisionTree-SVM.ipynb)
+# =====================================================================
+raw_data = pd.read_csv("D:\\MSC BA\\SEM 3\\ClassWork\\MLM\\creditcard(in).csv")
+
+raw_data.info()
+raw_data.head()
+
+# get the set of distinct classes
+labels = raw_data.Class.unique()
+
+# get the count of each class
+sizes = raw_data.Class.value_counts().values
+
+# plot the class value counts
+fig, ax = plt.subplots()
+ax.pie(sizes, labels=labels, autopct='%1.3f%%')
+ax.set_title('target Variable Value Counts')
+plt.show()
+# in this we see that, there is a huge class imbalance in this data showing 99% as 0 and 0.17% as 1.
+
+# correlation
+correlation_values = raw_data.corr()['Class'].drop('Class')
+correlation_values.plot(kind='barh', figsize=(10, 6))
+
+# standardize features by removing the mean and scaling to unit variance
+raw_data.iloc[:, 1:30] = StandardScaler().fit_transform(raw_data.iloc[:, 1:30])
+data_matrix = raw_data.values
+
+# X: feature matrix (for this analysis, we exclude the time variable from the dataset)
+X = data_matrix[:, 1:30]
+
+# y: labels vector
+y = data_matrix[:, 30]
+
+# data normalization
+X = normalize(X, norm='l1')
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+w_train = compute_sample_weight('balanced', y_train)  # add weightage to balance classes and get better accuracy
+
+dt = DecisionTreeClassifier(max_depth=4, random_state=35)
+dt.fit(X_train, y_train, sample_weight=w_train)
+
+# build support vector machine (SVM)
+svm = LinearSVC(class_weight='balanced', random_state=31, loss='hinge', fit_intercept=False)
+svm.fit(X_train, y_train)
+
+# to compute the probabilities
+y_pred_dt = dt.predict_proba(X_test)[:, 1]
+
+roc_auc_dt = roc_auc_score(y_test, y_pred_dt)
+print('Decision Tree ROC-AUC score:{0:.3f}'.format(roc_auc_dt))  # helps with better accuracy of both outcomes
+
+y_pred_svm = svm.decision_function(X_test)
+
+roc_auc_svm = roc_auc_score(y_test, y_pred_svm)
+print("SVM ROC-AUC score:{0:.3f}".format(roc_auc_svm))
+
+
+# =====================================================================
+# 6. SVM (RBF KERNEL) - IRIS + DECISION BOUNDARY
+#    (SVM__1_.ipynb)
+# =====================================================================
+# Part 1 - data pipeline and performance model
+# 1. load the dataset
+iris = datasets.load_iris()
+X = iris.data
+y = iris.target
+
+# 2. split into training and testing sets (80% train, 20% test)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# 3. scale the features (required for optimal SVM performance)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# 4. initialize and train the final evaluation model (use all 4 features)
+evaluation_model = SVC(kernel='rbf', C=1.0, random_state=42)  # kernel projects the data into a higher dimension and back
+evaluation_model.fit(X_train_scaled, y_train)
+
+# 5. evaluate overall performance
+y_pred = evaluation_model.predict(X_test_scaled)
+accuracy = accuracy_score(y_test, y_pred)
+
+print(f"Overall Model accuracy: {accuracy*100:.2f}%\n")
+print(classification_report(y_test, y_pred, target_names=iris.target_names))
+
+# Part 2: decision boundary visualization
+print("generating decision boundary plot, close the plot window to finish script")
+
+# to plot in a 2D space, train a separate visualizer model using only sepal length and width
+X_visual = iris.data[:, :2]
+scaler_visual = StandardScaler()
+X_visual_scaled = scaler_visual.fit_transform(X_visual)
+visual_model = SVC(kernel='rbf', C=1.0, gamma='scale', random_state=42)
+visual_model.fit(X_visual_scaled, y)
+
+# define grid mesh boundaries
+x_min, x_max = X_visual_scaled[:, 0].min() - 0.5, X_visual_scaled[:, 0].max() + 0.5
+y_min, y_max = X_visual_scaled[:, 1].min() - 0.5, X_visual_scaled[:, 1].max() + 0.5   # FIX: was column 0
+xx, yy = np.meshgrid(np.arange(x_min, x_max, 0.02),
+                     np.arange(y_min, y_max, 0.02))
+
+# predict across the mesh grid
+Z = visual_model.predict(np.c_[xx.ravel(), yy.ravel()])
+Z = Z.reshape(xx.shape)
+
+# create the graph
+plt.figure(figsize=(8, 6))
+plt.contourf(xx, yy, Z, alpha=0.3, cmap=plt.cm.coolwarm)
+
+# overlay the actual data points
+scatter = plt.scatter(X_visual_scaled[:, 0], X_visual_scaled[:, 1], c=y,
+                      cmap=plt.cm.coolwarm, edgecolors='k', s=40)
+
+# formatting
+plt.xlabel("Sepal Length (standardized)")
+plt.ylabel("Sepal Width (standardized)")
+plt.title("SVM Decision Boundaries On Iris Dataset (Sepal features)")
+plt.legend(handles=scatter.legend_elements()[0], labels=list(iris.target_names))   # FIX: [0] picks the handles
+plt.grid(True, linestyle='--', alpha=0.5)
+plt.show()
+
+
+# =====================================================================
+# 7. MULTI-CLASS CLASSIFICATION - OBESITY LEVEL (OvA vs OvO)
+#    (multi-class_classification.ipynb)
+# =====================================================================
+df = pd.read_csv("D:\\MSC BA\\SEM 3\\ClassWork\\MLM\\Obesity_level_prediction_dataset.csv")
+df.head()
+
+sns.countplot(y='NObeyesdad', data=df)
+plt.title("Distribution of Obesity Levels")
+plt.show()
+
+print(df.isnull().sum())
+
+# Data Describe
+print(df.info())
+print(df.describe())
+
+# Standardizing continuous numerical features
+cont_col = df.select_dtypes(include=['float64']).columns.tolist()
+
+scaler = StandardScaler()
+scaled_features = scaler.fit_transform(df[cont_col])
+
+# converting to a dataframe
+scaled_df = pd.DataFrame(scaled_features, columns=scaler.get_feature_names_out(cont_col))
+
+# combining with the original dataset
+scaled_df = pd.concat([df.drop(columns=cont_col), scaled_df], axis=1)
+
+# Identifying categorical columns
+cat_col = scaled_df.select_dtypes(include=['object']).columns.tolist()
+cat_col.remove('NObeyesdad')  # Exclude target variable
+
+encoder = OneHotEncoder(sparse_output=False, drop='first')
+encoded_features = encoder.fit_transform(scaled_df[cat_col])
+
+encoded_df = pd.DataFrame(encoded_features, columns=encoder.get_feature_names_out(cat_col))
+
+prepped_df = pd.concat([scaled_df.drop(columns=cat_col), encoded_df], axis=1)
+
+prepped_df['NObeyesdad'] = prepped_df['NObeyesdad'].astype('category').cat.codes
+prepped_df.head()
+
+# prepping final dataset
+x = prepped_df.drop('NObeyesdad', axis=1)
+y = prepped_df['NObeyesdad']
+X = x   # FIX: later cells use capital X, which was never defined in the original
+
+# splitting data
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42, stratify=y)
+
+# Training one vs all logistic regression model
+model_ova = OneVsRestClassifier(
+    LogisticRegression(max_iter=1000)
+)
+
+model_ova.fit(x_train, y_train)
+
+y_pred_ova = model_ova.predict(x_test)
+
+# Evaluation metrics for OvA
+print("One vs All Strategy")
+print(f"Accuracy:{np.round(100*accuracy_score(y_test, y_pred_ova), 2)}%")
+
+model_ovo = OneVsOneClassifier(LogisticRegression(max_iter=1000))
+model_ovo.fit(x_train, y_train)
+
+y_pred_ovo = model_ovo.predict(x_test)
+
+# Evaluation metrics for OvO
+print("One vs One Strategy")   # FIX: label said "One vs All"
+print(f"Accuracy:{np.round(100*accuracy_score(y_test, y_pred_ovo), 2)}%")
+
+test_sizes = [0.1, 0.2, 0.3]
+
+results = []
+
+for test_size in test_sizes:
+
+    # Split the data
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y,
+        test_size=test_size,
+        random_state=42,
+        stratify=y
+    )
+
+    # Train One-vs-All Logistic Regression
+    model = LogisticRegression(
+        multi_class='ovr',
+        max_iter=1000
+    )
+
+    model.fit(X_train, y_train)
+
+    # Predictions
+    y_pred = model.predict(X_test)
+
+    # Accuracy
+    accuracy = accuracy_score(y_test, y_pred)
+
+    # Store results
+    results.append({
+        'Test Size': test_size,
+        'Train Size': 1 - test_size,
+        'Accuracy': accuracy
+    })
+
+# Convert results to DataFrame
+results_df = pd.DataFrame(results)
+
+# Display results
+results_df
+
+## Checking the effectiveness
+plt.figure(figsize=(8, 5))
+
+plt.plot(
+    results_df['Test Size'],
+    results_df['Accuracy'],
+    marker='o'
+)
+
+plt.xlabel('Test Size')
+plt.ylabel('Accuracy')
+plt.title('Impact of Test Size on Model Performance')
+plt.grid(True)
+
+plt.show()
+
+# Get absolute coefficients
+importance = np.abs(model_ova.coef_)
+
+# Average importance across all classes
+feature_importance = importance.mean(axis=0)
+
+# Create DataFrame
+importance_df = pd.DataFrame({
+    'Feature': X.columns,
+    'Importance': feature_importance
+})
+
+# Sort from highest to lowest
+importance_df = importance_df.sort_values(
+    by='Importance',
+    ascending=False
+)
+
+# Display
+importance_df
+
+# Bar chart of feature importance
+plt.figure(figsize=(10, 6))
+
+plt.bar(
+    importance_df['Feature'],
+    importance_df['Importance']
+)
+
+plt.xlabel('Features')
+plt.ylabel('Absolute Coefficient')
+plt.title('Feature Importance - One-vs-All Logistic Regression')
+
+plt.xticks(rotation=45, ha='right')
+
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(10, 6))
+
+plt.barh(
+    importance_df['Feature'],
+    importance_df['Importance']
+)
+
+plt.xlabel('Absolute Coefficient')
+plt.ylabel('Feature')
+plt.title('Feature Importance - One-vs-All Logistic Regression')
+
+plt.gca().invert_yaxis()
+
+plt.tight_layout()
+plt.show()
+
+# Get coefficients from all pairwise Logistic Regression models
+ovo_coefficients = np.array([
+    estimator.coef_[0]
+    for estimator in model_ovo.estimators_
+])
+
+# Calculate average absolute coefficient
+ovo_importance = np.abs(ovo_coefficients).mean(axis=0)
+
+# Create DataFrame
+ovo_importance_df = pd.DataFrame({
+    'Feature': X.columns,
+    'Importance': ovo_importance
+})
+
+# Sort from highest to lowest
+ovo_importance_df = ovo_importance_df.sort_values(
+    by='Importance',
+    ascending=False
+)
+
+# Display
+ovo_importance_df
+
+# Bar chart of One-vs-One feature importance
+plt.figure(figsize=(10, 6))
+
+plt.barh(
+    ovo_importance_df['Feature'],
+    ovo_importance_df['Importance']
+)
+
+plt.xlabel('Average Absolute Coefficient')
+plt.ylabel('Feature')
+plt.title('Feature Importance - One-vs-One Logistic Regression')
+
+plt.gca().invert_yaxis()
+
+plt.tight_layout()
+plt.show()
+
+# Combine OvA and OvO feature importance
+comparison_df = pd.DataFrame({
+    'Feature': X.columns,
+    'OvA Importance': feature_importance,
+    'OvO Importance': ovo_importance
+})
+
+comparison_df = comparison_df.sort_values(
+    by='OvA Importance',
+    ascending=False
+)
+
+comparison_df
+
+comparison_plot = comparison_df.set_index('Feature')
+
+comparison_plot.plot(
+    kind='bar',
+    figsize=(12, 6)
+)
+
+plt.xlabel('Features')
+plt.ylabel('Absolute Coefficient')
+plt.title('Feature Importance: One-vs-All vs One-vs-One')
+
+plt.xticks(rotation=45, ha='right')
+
+plt.tight_layout()
+plt.show()
