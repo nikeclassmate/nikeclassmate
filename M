@@ -1,0 +1,883 @@
+# =====================================================================
+# ALL LIBRARIES (imported once)
+# =====================================================================
+
+import warnings
+warnings.filterwarnings("ignore")
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+%matplotlib inline
+
+# Scikit-learn: data splitting
+from sklearn.model_selection import train_test_split, GridSearchCV,  cross_val_score, KFold
+
+# Scikit-learn: preprocessing
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, OneHotEncoder, LabelEncoder, normalize 
+
+# Scikit-learn: models
+from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.svm import SVC
+from sklearn.multiclass import OneVsOneClassifier, OneVsRestClassifier
+from sklearn.tree import DecisionTreeClassifier, plot_tree, DecisionTreeRegressor
+from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
+from sklearn.cluster import KMeans
+from sklearn.naive_bayes import GaussianNB, MultinomialNB
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.inspection import permutation_importance
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+
+# Scikit-learn: metrics
+from sklearn.metrics import accuracy_score, classification_report, log_loss, mean_absolute_error, mean_squared_error, r2_score, confusion_matrix, ConfusionMatrixDisplay
+
+from xgboost import XGBClassifier, plot_importance
+
+from sklearn.datasets import fetch_20newsgroups
+from sklearn.datasets import load_iris
+
+# =====================================================================
+# 1. CUSTOMER & PURCHASES - DATA CLEANING / INTEGRATION / TRANSFORMATION
+#    (cust_pur.ipynb)
+# =====================================================================
+customers = pd.read_csv("D:\\MSC BA\\SEM 3\\ClassWork\\MLM\\customers_raw.csv")
+purchases = pd.read_csv("D:\\MSC BA\\SEM 3\\ClassWork\\MLM\\purchases.csv")
+
+print(customers.info())
+print(purchases.info())
+
+print(customers.isnull().sum())
+print(purchases.isnull().sum())
+
+# dropping duplicates in the data
+customers = customers.drop_duplicates()
+purchases = purchases.drop_duplicates()
+
+print(customers.info())
+print(purchases.info())
+
+# changing the city column letters to same case eg - from BANGALORE, Delhi, mumbai to Bangalore, Delhi and Mumbai
+customers["City"] = customers["City"].str.title()
+
+# filling the missing values
+customers["Name"] = customers["Name"].fillna("Unknown")
+customers["Age"] = customers["Age"].fillna(customers["Age"].median())
+customers["Salary"] = customers["Salary"].fillna(customers["Salary"].median())
+
+print(customers.head())
+
+# standardization (inter quatile range can also be taken)
+scaler = StandardScaler()
+customers[["Age", "Salary"]] = scaler.fit_transform(customers[["Age", "Salary"]])
+print(customers.head())
+
+combined = pd.merge(customers, purchases, on="CustomerID", how="inner")
+print(combined.head())
+
+# 1a - remove exact duplicate rows
+before = len(customers)
+df = customers.drop_duplicates(subset="CustomerID", keep="first")
+print(f"(a) Removed duplicates: {before}-> {len(df)} rows")
+
+# 1b - standardize inconsistent categorical text
+df["City"] = df["City"].str.strip().str.title()
+print("(b) Standardized 'City' text casing:")
+print(df["City"].unique())
+
+# 1c- Handle missing values
+df["Name"] = df["Name"].fillna("Unknown")
+df["Age"] = df["Age"].fillna(df["Age"].median())
+df["Salary"] = df["Salary"].fillna(df["Salary"].median())
+print("\n(c) Missing values after imputation:")
+print(df.isnull().sum())
+
+# 1d- Handle outliers using IQR method
+def cap_outliers_iqr(series):
+    q1, q3 = series.quantile([0.25, 0.75])
+    iqr = q3 - q1
+    lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    return series.clip(lower, upper)
+
+print("\n(d) Outlier capping (IQR method) on Age and Salary:")
+print("Before->", df[["Age", "Salary"]].describe().loc[["min", "max"]].to_dict())
+df["Age"] = cap_outliers_iqr(df["Age"])
+df["Salary"] = cap_outliers_iqr(df["Salary"])
+print("After ->", df[["Age", "Salary"]].describe().loc[["min", "max"]].to_dict())
+
+print("\nCleaned dataset:")
+print(df)
+
+df_purchases = pd.DataFrame(purchases)
+print("Second source (Purchases table):")
+print(df_purchases)
+
+df_integrated = pd.merge(df, df_purchases, on="CustomerID", how="left")
+
+df_integrated["TotalPurchases"] = df_integrated["TotalPurchases"].fillna(0)
+df_integrated["MemberSince"] = df_integrated["MemberSince"].fillna(df_integrated["MemberSince"].median())
+
+# Loyalty Points based on Total Purchases
+df_integrated.loc[(df_integrated["TotalPurchases"] >= 1) & (df_integrated["TotalPurchases"] <= 5), "LoyaltyPoints"] = 1
+df_integrated.loc[(df_integrated["TotalPurchases"] >= 6) & (df_integrated["TotalPurchases"] <= 10), "LoyaltyPoints"] = 2
+df_integrated.loc[(df_integrated["TotalPurchases"] >= 11) & (df_integrated["TotalPurchases"] <= 15), "LoyaltyPoints"] = 3
+df_integrated.loc[(df_integrated["TotalPurchases"] >= 16) & (df_integrated["TotalPurchases"] <= 20), "LoyaltyPoints"] = 4
+
+# Loyalty Group
+group_map = {
+    1: "Bronze",
+    2: "Silver",
+    3: "Gold",
+    4: "Platinum"
+}
+
+# Cashback
+cashback_map = {
+    1: 100,
+    2: 200,
+    3: 300,
+    4: 400
+}
+
+df_integrated["LoyaltyGroup"] = df_integrated["LoyaltyPoints"].map(group_map)
+df_integrated["Cashback"] = df_integrated["LoyaltyPoints"].map(cashback_map)
+
+current_year = 2026
+df_integrated["MembershipYears"] = current_year - df_integrated["MemberSince"]
+
+# Active if the customer averages at least 1 purchase per year
+purchase_rate = (
+    df_integrated["TotalPurchases"] /
+    df_integrated["MembershipYears"]
+)
+
+df_integrated["MembershipStatus"] = np.where(
+    purchase_rate >= 1,
+    "Active",
+    "Inactive"
+)
+
+print("\nIntegrated dataset (customer+purchase info merged on Customer ID):")
+print(df_integrated)
+
+# data transformation
+df_t = df_integrated.copy()
+
+# 3a - Normalization (Min-max scaling :0,1)- useful for distance based models
+minmax = MinMaxScaler()
+df_t[["Age_MinMax", "Salary_MinMax"]] = minmax.fit_transform(df_t[["Age", "Salary"]])
+
+# 3b - Standardization
+zscore = StandardScaler()
+df_t[["Age_Z", "Salary_Z"]] = zscore.fit_transform(df_t[["Age", "Salary"]])
+
+# 3c - Encoding categorical variables
+le = LabelEncoder()
+df_t["Gender_Encoded"] = le.fit_transform(df_t["Gender"])
+df_t = pd.get_dummies(df_t, columns=["City"], prefix="City")
+
+# 3d - discretization/binning - convert continuous age into categorical buckets
+bins = [0, 25, 35, 50, 100]
+labels = ["Young", "Adult", "MidAge", "Senior"]
+df_t["Age_Group"] = pd.cut(df_integrated["Age"], bins=bins, labels=labels)
+
+print("Transformed dataset (scaled, encoded and binned):")
+show_cols = ["CustomerID", "Age", "Age_MinMax", "Age_Z", "Age_Group", "Salary",
+             "Salary_MinMax", "Salary_Z", "Gender", "Gender_Encoded"]
+print(df_t[show_cols])
+
+print("\nOne-hot encoded City columns added:")
+city_cols = [c for c in df_t.columns if c.startswith("City_")]
+print(df_t[["CustomerID"] + city_cols])
+
+
+# =====================================================================
+# Linear Regression
+# =====================================================================
+
+## import
+
+df=pd.read_csv('FuelConsumptionCo2.csv')
+df.head(5)
+
+## basic tests
+df.isnull().sum()
+df.describe()
+df.columns
+
+## feature selection
+X=df['ENGINESIZE']
+Y=df['CO2EMISSIONS']
+
+X.shape
+X=X.to_numpy().reshape(-1,1)
+
+## train-test-split
+X_train,X_test,Y_train,Y_test=train_test_split(X,Y,test_size=0.2,random_state=42)
+
+## train the model
+model1=LinearRegression()
+model1.fit(X_train,Y_train)
+
+plt.scatter(X_train,Y_train)
+plt.plot(X_train,X_train*model1.coef_+model1.intercept_,'-r')
+plt.show()
+
+## predicting
+
+Y_pred=model1.predict(X_test)
+print("MAE: ",mean_absolute_error(Y_test,Y_pred))
+print("MSE: ",mean_squared_error(Y_test,Y_pred))
+print("RMSE: ",np.sqrt(mean_squared_error(Y_test,Y_pred)))
+print("R_square: ",r2_score(Y_test,Y_pred))
+
+## multiple features
+
+x=df[['FUELCONSUMPTION_CITY',
+       'FUELCONSUMPTION_HWY', 'FUELCONSUMPTION_COMB',
+       'FUELCONSUMPTION_COMB_MPG']]
+y=df['CO2EMISSIONS']
+scaler=StandardScaler()
+x=scaler.fit_transform(x)
+
+x_train,x_test,y_train,y_test=train_test_split(x,y,test_size=0.2,random_state=42)
+
+model2=LinearRegression()
+model2.fit(x_train,y_train)
+
+for i in range(x_train.shape[1]):
+    plt.scatter(x_train[:,i],y_train)
+    plt.plot(x_train[:,i],x_train[:,i]*model2.coef_[i]+model2.intercept_,'r')
+    plt.show()
+
+y_pred=model2.predict(x_test)
+print("MAE: ",mean_absolute_error(y_test,y_pred))
+print("MSE: ",mean_squared_error(y_test,y_pred))
+print("RMSE: ",np.sqrt(mean_squared_error(y_test,y_pred)))
+print("R square: ",r2_score(y_test,y_pred))
+
+
+# =====================================================================
+# Logistic Regression
+# =====================================================================
+
+churn_df = pd.read_excel("ChurnData.xlsx")
+print(churn_df)
+
+churn_df = churn_df[['tenure','age','address','income','ed','employ','equip','churn']]
+churn_df['churn']=churn_df['churn'].astype('int')
+churn_df
+
+X = np.asarray(churn_df[['tenure','age','address','income','ed','employ','equip']])
+X[0:5]
+
+y = np.asarray(churn_df['churn'])
+y[0:5]
+
+X_norm=StandardScaler().fit(X).transform(X)
+X_norm[0:5]
+
+X_train,X_test,y_train,y_test=train_test_split(X_norm,y,test_size=0.2,random_state=42)
+
+LR = LogisticRegression().fit(X_train,y_train)
+
+yhat=LR.predict(X_test)
+yhat[:10]
+
+yhat_prob = LR.predict_proba(X_test)
+yhat_prob[:10]
+
+coefficients = pd.Series(LR.coef_[0], index= churn_df.columns[:-1])
+coefficients.sort_values().plot(kind="barh")
+plt.title("Feature Coefficient in Logistic Regression Churen Model")
+plt.xlabel("coefficient Value")
+plt.show()
+
+accuracy_score(Y_test,Y_pred)
+log_loss(y_test, yhat_prob)
+
+# =====================================================================
+# OvO/OvA Classification
+# =====================================================================
+
+## importing the data
+df=pd.read_csv("Obesity_level_prediction_dataset.csv")
+df.head()
+
+## checking for null values
+df.isnull().sum()
+
+## structure of the data
+df.info()
+
+## ploting
+sns.countplot(y='NObeyesdad',data=df)
+plt.show()
+
+Y=df['NObeyesdad'].astype('category').cat.codes
+Y.head()
+
+# extracting numerical features
+X_num=df.select_dtypes(include='float64') # selecting numerical features
+scaler=StandardScaler()
+X_num_std=scaler.fit_transform(X_num) # standardizing the features
+X_num_std=pd.DataFrame(X_num_std,columns=X_num.columns) # converting back to DataFrame
+X_num_std.head()
+
+# extracting categorical features
+X_obj=df.select_dtypes(include='object') # selecting the categorical features
+encoder=OneHotEncoder(sparse_output=False,drop="first")
+X_obj_encoder=encoder.fit_transform(X_obj) # encoding the categorical features
+X_obj_encoder=pd.DataFrame(X_obj_encoder,columns=encoder.get_feature_names_out(X_obj.columns)) # converting back to data frame
+X_obj_encoder.head()
+
+# combining numerical and categorical
+X=pd.concat([X_num_std,X_obj_encoder],axis=1)
+X.head()
+
+
+X_train,X_test,Y_train,Y_test=train_test_split(X,Y,test_size=0.2,random_state=42,stratify=Y)
+
+Y.nunique() # number of classes
+Y.unique() # what they are
+Y.value_counts() ## how many in each class
+
+## one vs one classifier
+model_ovo=OneVsOneClassifier(LogisticRegression(max_iter=1000))
+model_ovo.fit(X_train,Y_train)
+
+## predicting on test data set
+
+Y_pred_ovo=model_ovo.predict(X_test)
+Y_pred_ovo[:5]
+
+# one vs all
+model_ova=OneVsRestClassifier(LogisticRegression())
+model_ova.fit(X_train,Y_train)
+
+## predicting on test model
+Y_pred_ova=model_ova.predict(X_test)
+print("\n Accuracy: ",accuracy_score(Y_test,Y_pred_ova))
+
+
+# =====================================================================
+# Decision tree classifier
+# =====================================================================
+
+df=pd.read_csv("drug200.csv")
+df.head()
+
+label_encoder=LabelEncoder()
+Y=label_encoder.fit_transform(df['Drug']) # encoding target variable 
+Y=pd.DataFrame(Y,columns=["Drug"])
+Y.head()
+
+sns.countplot(y='Drug',data=df)
+
+## selecting the target variables
+X_num=df[['Age','Na_to_K']] # selecting the numerical variables
+
+X_obj=df.select_dtypes(include='object') # selecting the categorical features
+X_obj=X_obj.drop('Drug',axis=1) # droping the traget variable
+
+# encoder the categorical variables
+X_obj['Sex']=label_encoder.fit_transform(X_obj['Sex'])
+X_obj['BP']=label_encoder.fit_transform(X_obj['BP'])
+X_obj['Cholesterol']=label_encoder.fit_transform(X_obj['Cholesterol'])
+
+#X_obj=pd.DataFrame(X_obj_encoder,columns=X_obj.columns) # converting back to Data frame
+X=pd.concat([X_num,X_obj],axis=1)
+X.head()
+
+X_train,X_test,Y_train,Y_test=train_test_split(X,Y,test_size=0.3,random_state=32)
+
+model_dtc=DecisionTreeClassifier(criterion="entropy",max_depth=4)
+model_dtc.fit(X_train,Y_train)
+
+Y_pred=model_dtc.predict(X_test)
+print("\n Accuracy: ",accuracy_score(Y_test,Y_pred))
+
+plot_tree(model_dtc)
+plt.show()
+
+
+# =====================================================================
+# decision tree regressior
+# =====================================================================
+
+## importing the data
+df=pd.read_csv("yellow_tripdata.csv")
+df.head()
+
+corr=df.corr()['tip_amount'].drop(['tip_amount'])
+corr.plot(kind="barh")
+
+Y=df["tip_amount"].astype("float64")
+Y.head()
+
+X=df.drop(['tip_amount'],axis=1)
+X.head()
+# normalize the feature matrix
+X=normalize(X,axis=1,norm='l1',copy=False)
+
+X_train,X_test,y_train,y_test=train_test_split(X,y,test_size=0.3,random_state=42)
+
+for i in range(3,15):
+    model_dtr=DecisionTreeRegressor(criterion="squared_error",max_depth=i,random_state=35)
+    model_dtr.fit(X_train,Y_train)
+    Y_pred=model_dtr.predict(X_test)
+    print("\n Max dept: ",i)
+    print("MAE ",mean_absolute_error(Y_test,Y_pred))
+    print("MSE ",mean_squared_error(Y_test,Y_pred))
+    print("RMSE ",np.sqrt(mean_squared_error(Y_test,Y_pred)))
+    print("R^2 Score ",r2_score(Y_test,Y_pred))
+
+## feature importance
+feature_importance = pd.DataFrame({
+    "Feature": raw_data.drop("tip_amount", axis=1).columns,
+    "Importance": dt_reg.feature_importances_
+})
+
+feature_importance = feature_importance.sort_values(
+    by="Importance",
+    ascending=False
+)
+
+top_3 = feature_importance.head(3)
+top_3
+
+
+# =====================================================================
+# SVM
+# =====================================================================
+
+from sklearn.datasets import load_iris
+iris=load_iris(as_frame=True)
+df=iris.frame
+df.head()
+
+X=iris.data #extracting the features
+Y=iris.target # extracting the targets
+
+scaler = StandardScaler()
+X=scaler.fit_transform(X) # scaling the features
+
+X_train,X_test,Y_train,Y_test=train_test_split(X,Y,test_size=0.2,random_state=42,stratify=Y)
+
+model_svc=SVC(kernel='rbf',C=1.0,gamma="scale",random_state=42)
+model_svc.fit(X_train,Y_train)
+
+## predicting
+Y_pred=model_svc.predict(X_test)
+print("\n Accuracy: ",accuracy_score(Y_test,Y_pred))
+
+print("Classification Report")
+print(classification_report(Y_test,Y_pred,target_names=iris.target_names))
+
+# Use 2 features for visualization
+X_visual = X[:, :2]
+# Train SVM using these 2 features
+visual_model = SVC(kernel="rbf", C=1.0, gamma="scale")
+visual_model.fit(X_visual, Y)
+
+# Create grid
+x_min, x_max = X_visual[:, 0].min() - 0.5, X_visual[:, 0].max() + 0.5
+y_min, y_max = X_visual[:, 1].min() - 0.5, X_visual[:, 1].max() + 0.5
+
+xx, yy = np.meshgrid(
+    np.arange(x_min, x_max, 0.02),
+    np.arange(y_min, y_max, 0.02)
+)
+
+# Predict grid points
+Z = visual_model.predict(np.c_[xx.ravel(), yy.ravel()])
+Z = Z.reshape(xx.shape)
+
+# Plot
+plt.figure(figsize=(8, 6))
+plt.contourf(xx, yy, Z, alpha=0.3)
+plt.scatter(X_visual[:, 0], X_visual[:, 1], c=Y, edgecolor="k",s=40)
+
+plt.xlabel("Sepal Length")
+plt.ylabel("Sepal Width")
+plt.title("SVM Decision Boundary")
+plt.grid(True,linestyle="--")
+plt.show()
+
+
+
+# =====================================================================
+# KMeans Classification
+# =====================================================================
+
+iris=load_iris()
+X=iris.data # KMeans only needs the features not the lables
+
+wcss=[]
+for i in range(1,11):
+    kmeans=KMeans(n_clusters=i,init='k-means++',random_state=42)
+    kmeans.fit(X)
+    wcss.append(kmeans.inertia_)
+
+# Plot the Elbow graph
+plt.figure(figsize=(6,4))
+plt.plot(range(1,11),wcss,marker='o')
+plt.title('Elbow Method')
+plt.xlabel('Number of Cluster')
+plt.ylabel('WCSS')
+plt.show()
+
+kmeans=KMeans(n_clusters=3,init='k-means++',random_state=42)
+y_means=kmeans.fit_predict(X)
+print("Cluster Centers: \n", kmeans.cluster_centers_)
+
+import seaborn as sns
+# 4. Create the scatter plot
+plt.figure(figsize=(8, 6))
+sns.set_theme(style="whitegrid")
+
+# Plot the data points colored by their assigned cluster
+scatter = plt.scatter(
+    petal_lengths,
+    petal_widths,
+    c=y_means,
+    cmap="viridis",
+    s=60,
+    alpha=0.8,
+    edgecolors="black",
+    label="Data Points"
+)
+
+# Plot the cluster centers (Centroids) as large red X markers
+plt.scatter(
+    centers[:, 2],
+    centers[:, 3],
+    c="red",
+    s=200,
+    marker="X",
+    edgecolors="black",
+    label="Centroids")
+
+
+
+
+# =====================================================================
+# KNN
+# =====================================================================
+
+df=pd.read_csv("teleCust1000t.csv")
+df.head()
+
+X=df.drop("custcat",axis=1)
+Y=df["custcat"]
+
+corr_mat=df.corr()
+sns.heatmap(corr_mat,annot=True,cmap="coolwarm",fmt='.2f')
+
+scaler=StandardScaler()
+X=scaler.fit_transform(X)
+
+X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
+
+acc=np.zeros(10)
+stde=np.zeros(10)
+for i in range(1,10):
+    knn=KNeighborsClassifier(n_neighbors=i)
+    knn.fit(X_train,Y_train)
+    Y_pred=knn.predict(X_test)
+    print("\n At k=",i)
+    print("Accuracy: ",accuracy_score(Y_test,Y_pred))
+    acc[i-1]=accuracy_score(Y_test,Y_pred)
+    print("Standard Error: ",np.std(Y_pred==Y_test)/np.sqrt(Y_pred.shape[0]))
+    stde[i-1]=np.std(Y_pred==Y_test)/np.sqrt(Y_pred.shape[0])
+
+knn=KNeighborsClassifier(n_neighbors=3)
+knn.fit(X_train,Y_train)
+
+Y_pred=knn.predict(X_test)
+print("Accuracy: ",accuracy_score(Y_test,Y_pred))
+print("Standard Error:", np.std(Y_pred==Y_test)/np.sqrt(Y_pred.shape[0]))
+
+plt.plot(range(1,11),acc)
+plt.fill_between(range(1,11),acc-1*stde,acc+1*stde,alpha=0.1)
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+# =====================================================================
+# Sentiment analysis
+# =====================================================================
+
+data={
+    'text':[
+        "I absolutely love this product, it works perfectly. It's amazing",
+        "This is the worst purchase I've ever made.",
+        "It's okay, nothing special but does the job.",
+        "Fantastic customer service and beautiful design.",
+        "Horrible quality, it broke on the first day.",
+        "I am highly satisfied with the fast shipping.",
+        "Waste of money. Do not buy this product.",
+        "Pretty good value for the price, I recommend it.",
+        "item arrived late and the priduct was damaged, very disappointed."
+    ],
+    'sentiment':['positive','negative','neutral','positive','negative','positive','negative','positive','negative']
+}
+df=pd.DataFrame(data)
+print(df)
+
+X=df['text']
+Y=df['sentiment']
+
+vectorizer=TfidfVectorizer(stop_words='english',max_df=0.5)
+
+X_train,X_test,Y_train,Y_test=train_test_split(X,Y,test_size=0.2,random_state=42)
+
+X_train_vec=vectorizer.fit_transform(X_train)
+X_test_vec=vectorizer.transform(X_test)
+
+model_lb=LogisticRegression()
+model_nb=MultinomialNB()
+
+model_lb.fit(X_train_vec,Y_train)
+
+model_nb.fit(X_train_vec,Y_train)
+
+pred_lb=model_lb.predict(X_test_vec)
+print(f"Accuracy Score: {accuracy_score(Y_test,pred_lb)}")
+
+pred_nb=model_nb.predict(X_test_vec)
+print(f"Accuracy Score: {accuracy_score(Y_test,pred_nb)}")
+
+def pred_sent(new_text):
+    new_text_vec=vectorizer.transform(new_text)
+    lb_pred=model_lb.predict(new_text_vec)
+    nb_pred=model_nb.predict(new_text_vec)
+
+    for text,lb_p,nb_p in zip(new_text,lb_pred,nb_pred):
+        print(f"text: {text}")
+        print(f"LR prediction: {lb_p.upper()}")
+        print(f"NB prediction: {nb_p.upper()}")
+
+
+sent = [
+     "I absolutely love the product, great quality and works perfectly.",  # Positive
+    "The product is decent, nothing special but gets the job done.",      # Neutral
+    "Terrible purchase, the product stopped working after one use.",     # Negative
+    "Amazing quality and fast delivery, very happy with my purchase.",   # Positive
+    "The product is average, not bad but not particularly impressive.",  # Neutral
+    "Very poor quality, completely disappointed with this product."     # Negative
+]
+
+pred_sent(sent)
+
+
+
+
+# =====================================================================
+# gaussian 
+# =====================================================================
+
+# Load dataset
+iris = load_iris()
+X = iris.data
+Y = iris.target
+
+# Split data
+X_train, X_test, Y_train, Y_test = train_test_split(
+    X, Y, test_size=0.2, random_state=42
+)
+
+# Train model
+model = GaussianNB()
+model.fit(X_train, Y_train)
+
+# Predict
+Y_pred = model.predict(X_test)
+
+# Evaluate
+print("Accuracy:", accuracy_score(Y_test, Y_pred) * 100, "%")
+print(classification_report(Y_test, Y_pred))
+
+
+
+# =====================================================================
+# Pipline
+# =====================================================================
+
+# Load dataset
+data = load_iris()
+X, Y = data.data, data.target
+labels = data.target_names
+
+# Create pipeline
+pipeline = Pipeline([
+    ('scaler', StandardScaler()),
+    ('pca', PCA(n_components=2)),
+    ('knn', KNeighborsClassifier(n_neighbors=5))
+])
+
+# Split data
+X_train, X_test, Y_train, Y_test = train_test_split(
+    X, Y, test_size=0.2, random_state=42, stratify=Y
+)
+
+# Train pipeline
+pipeline.fit(X_train, Y_train)
+
+# Accuracy
+print("Accuracy:", pipeline.score(X_test, Y_test))
+
+# Predictions
+Y_pred = pipeline.predict(X_test)
+
+# Confusion matrix
+cm = confusion_matrix(Y_test, Y_pred)
+
+sns.heatmap(cm, annot=True, cmap='Blues', fmt='d',
+            xticklabels=labels, yticklabels=labels)
+
+plt.title("Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.show()
+
+
+
+
+# =====================================================================
+# random forest
+# =====================================================================
+
+# Load dataset
+data = load_iris()
+X = data.data
+Y = data.target
+
+# Split data
+X_train, X_test, Y_train, Y_test = train_test_split(
+    X, Y, test_size=0.2, random_state=42
+)
+
+# Create and train model
+model = RandomForestClassifier(n_estimators=100, random_state=42)
+model.fit(X_train, Y_train)
+
+# Predict
+Y_pred = model.predict(X_test)
+
+# Evaluate
+print("Accuracy:", accuracy_score(Y_test, Y_pred))
+print("Classification Report:\n", classification_report(Y_test, Y_pred))
+
+
+
+# =====================================================================
+# XGBoost
+# =====================================================================
+
+# Load data
+X = data.data
+y = data.target
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.35, random_state=42
+)
+
+# Create and train model
+model = XGBClassifier(
+    objective='multi:softprob',
+    num_class=3,
+    eval_metric='mlogloss',
+    random_state=42
+)
+
+model.fit(X_train, y_train)
+
+# Predict
+y_pred = model.predict(X_test)
+
+# Evaluate
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print(classification_report(y_test, y_pred))
+
+# Feature importance
+plot_importance(model)
+plt.show()
+
+# Confusion matrix
+cm = confusion_matrix(y_test, y_pred)
+
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=data.target_names,
+            yticklabels=data.target_names)
+
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix")
+plt.show()
+
+
+# =====================================================================
+# Cross Validation
+# =====================================================================
+
+df=pd.read_excel("ChurnData.xlsx")
+df.head()
+
+X=df.drop('churn',axis=1)
+Y=df['churn']
+
+scaler=StandardScaler()
+X_std=scaler.fit_transform(X)
+
+X_train,X_test,Y_train,Y_test=train_test_split(X_std,Y,test_size=0.2,random_state=42,stratify=Y)
+
+models={
+    'Random Forest': RandomForestClassifier(n_estimators=100,random_state=42),
+    'Gradient Boosting': GradientBoostingClassifier(n_estimators=100,random_state=42),
+    'XGBoost': XGBClassifier(n_estimators=100, random_state=42,learning_rate=0.1,eval_metric='logloss',use_label_encoder=False)
+}
+
+kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+for name, model in models.items():
+    print(f"Model: {name}")
+
+    model.fit(X_train, Y_train)
+    Y_pred = model.predict(X_test)
+
+    print(classification_report(Y_test, Y_pred))
+
+    ConfusionMatrixDisplay.from_predictions(Y_test, Y_pred)
+    plt.title(f"Confusion Matrix: {name}")
+    plt.show()
+
+    cv_scores = cross_val_score(model, X_train, Y_train, cv=kf)
+
+    print("CV Scores:", cv_scores)
+    print("Mean:", np.mean(cv_scores))
+    print("Standard Deviation:", np.std(cv_scores))
+
+    print("-" * 40)
+
+# feature importance
+print(" Top 5 Feature Importance:") 
+importances = model.feature_importances_ 
+indices = np.argsort(importances)[::-1]
+
+for i in range(min(5, len(X.columns))):    
+    print(f"{i + 1}. Feature: {X.columns[indices[i]]}, Importance: {importances[indices[i]]:.4f}")
+
+
+importance = pd.Series(model.feature_importances_, index=X.columns)
+print("Top 5 Feature Importance")
+print(importance.sort_values(ascending=False).head(5))
+
